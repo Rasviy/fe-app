@@ -1,5 +1,9 @@
+import Layout from "./layout";
+
 export default function Dashboard() {
   return (
-    <h1>Dashboard Login Success</h1>
+    <Layout>
+      <h1>Dashboard</h1>
+    </Layout>
   );
 }
