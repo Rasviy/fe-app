@@ -8,6 +8,10 @@ import {
   faBarcode,
   faRepeat,
   faArrowRightFromBracket,
+  faHouse,
+  faWarehouse,
+  faSuitcase,
+  faLayerGroup
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useState } from "react";
@@ -17,10 +21,11 @@ export default function Sidebar() {
   const [username, setUsername] = useState("User");
 
   const menu = [
-    { name: "Dashboard", icon: faGauge, path: "/dashboard" },
-    { name: "Unit", icon: faBoxes, path: "/unit" },
-    { name: "Category", icon: faRightLeft, path: "/category" },
-    { name: "Item", icon: faBarcode, path: "/item" },
+    { name: "Dashboard", icon: faHouse, path: "/dashboard" },
+    { name: "Unit", icon: faSuitcase, path: "/unit" },
+    { name: "Category", icon: faLayerGroup, path: "/category" },
+    { name: "Item", icon: faBoxes, path: "/item" },
+    { name: "Gudang", icon: faWarehouse, path: "/transaction" },
     { name: "Transaction", icon: faRepeat, path: "/transaction" },
   ];
 

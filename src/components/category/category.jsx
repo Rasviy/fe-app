@@ -1,15 +1,15 @@
 // src/pages/CategoryPage.jsx
 import React, { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPenToSquare, faTrashCan } from "@fortawesome/free-solid-svg-icons";
+import { faPenToSquare, faTrashCan, faRotateLeft } from "@fortawesome/free-solid-svg-icons";
 
-// IMPORT LAYOUT (agar sidebar ikut tampil)
 import Layout from "../../pages/layout";
 
 const API_URL = "http://localhost:3000/categories";
 
 export default function CategoryPage() {
   const [categories, setCategories] = useState([]);
+  const [deletedCategories, setDeletedCategories] = useState([]);
 
   // Create state
   const [name, setName] = useState("");
@@ -29,7 +29,13 @@ export default function CategoryPage() {
   async function fetchCategories() {
     const res = await fetch(API_URL);
     const data = await res.json();
-    setCategories(data);
+
+    // Filter active dan deleted
+    const active = data.filter((c) => c.deleted_at === null);
+    const deleted = data.filter((c) => c.deleted_at !== null);
+
+    setCategories(active);
+    setDeletedCategories(deleted);
   }
 
   // CREATE CATEGORY
@@ -42,8 +48,8 @@ export default function CategoryPage() {
       body: JSON.stringify({ name, code, status }),
     });
 
-    const created = await res.json();
-    setCategories((prev) => [created, ...prev]);
+    await res.json();
+    fetchCategories();
 
     setName("");
     setCode("");
@@ -70,7 +76,7 @@ export default function CategoryPage() {
     e.preventDefault();
 
     const res = await fetch(`${API_URL}/${editingId}`, {
-      method: "PATCH",
+      method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: editName,
@@ -79,29 +85,30 @@ export default function CategoryPage() {
       }),
     });
 
-    const updated = await res.json();
-    setCategories((prev) =>
-      prev.map((c) => (c.id === editingId ? updated : c))
-    );
-
+    await res.json();
     cancelEdit();
+    fetchCategories();
   }
 
-  // DELETE CATEGORY
+  // SOFT DELETE CATEGORY
   async function handleDelete(id) {
     if (!confirm("Hapus kategori ini?")) return;
 
     await fetch(`${API_URL}/${id}`, { method: "DELETE" });
-    setCategories((prev) => prev.filter((c) => c.id !== id));
+    fetchCategories();
+  }
+
+  // RESTORE CATEGORY
+  async function handleRestore(id) {
+    await fetch(`${API_URL}/${id}/restore`, { method: "PUT" });
+    fetchCategories();
   }
 
   return (
     <Layout>
       <div className="max-w-5xl mx-auto my-10 space-y-8">
         <h1 className="text-3xl font-semibold">Category Management</h1>
-        <p className="text-gray-500 -mt-2">
-          Create, edit, and delete product categories.
-        </p>
+        <p className="text-gray-500 -mt-2">Create, edit, delete & restore categories.</p>
 
         {/* CREATE SECTION */}
         <div className="bg-white p-6 rounded-xl shadow-sm border space-y-5">
@@ -113,7 +120,7 @@ export default function CategoryPage() {
                 <label className="text-sm text-gray-600">Category Name</label>
                 <input
                   className="w-full mt-1 border rounded-lg px-3 py-2"
-                  placeholder="type a new category here"
+                  placeholder="type new category name"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                 />
@@ -123,7 +130,7 @@ export default function CategoryPage() {
                 <label className="text-sm text-gray-600">Category Code</label>
                 <input
                   className="w-full mt-1 border rounded-lg px-3 py-2"
-                  placeholder="type new category code here"
+                  placeholder="type category code"
                   value={code}
                   onChange={(e) => setCode(e.target.value)}
                 />
@@ -168,7 +175,7 @@ export default function CategoryPage() {
           </form>
         </div>
 
-        {/* TABLE SECTION */}
+        {/* ACTIVE CATEGORY TABLE */}
         <div className="bg-white p-6 rounded-xl shadow-sm border">
           <h2 className="font-semibold text-lg mb-4">Existing Categories</h2>
 
@@ -283,6 +290,47 @@ export default function CategoryPage() {
             </tbody>
           </table>
         </div>
+
+        {/* SOFT DELETED TABLE */}
+        {deletedCategories.length > 0 && (
+          <div className="bg-white p-6 rounded-xl shadow-sm border mt-10">
+            <h2 className="font-semibold text-lg mb-4 text-red-600">
+              Soft Deleted Categories
+            </h2>
+
+            <table className="w-full text-left">
+              <thead className="text-sm text-gray-500 border-b">
+                <tr>
+                  <th className="py-2">Name</th>
+                  <th className="py-2">Code</th>
+                  <th className="py-2">Deleted At</th>
+                  <th className="py-2 text-right">Actions</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {deletedCategories.map((cat) => (
+                  <tr key={cat.id} className="border-b">
+                    <td className="py-4">{cat.name}</td>
+                    <td className="py-4">{cat.code}</td>
+                    <td className="py-4 text-gray-500">
+                      {new Date(cat.deleted_at).toLocaleString()}
+                    </td>
+
+                    <td className="py-4 text-right">
+                      <button
+                        onClick={() => handleRestore(cat.id)}
+                        className="px-3 py-1 bg-green-600 text-white rounded"
+                      >
+                        <FontAwesomeIcon icon={faRotateLeft} /> Restore
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </Layout>
   );
