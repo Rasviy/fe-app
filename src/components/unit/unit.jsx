@@ -1,7 +1,6 @@
 // src/pages/UnitManagement.jsx
 import React, { useEffect, useState } from "react";
 import axios from "axios";
-
 import Layout from "../../pages/layout";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -18,6 +17,7 @@ export default function UnitManagement() {
   const [units, setUnits] = useState([]);
   const [deletedUnits, setDeletedUnits] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const [newUnitName, setNewUnitName] = useState("");
@@ -25,23 +25,21 @@ export default function UnitManagement() {
   const [editingId, setEditingId] = useState(null);
   const [editingName, setEditingName] = useState("");
 
-  /* ============================
-      FETCH ALL ACTIVE DELETED
-     ============================ */
+  /* ============================================================
+        FETCH UNITS (ACTIVE + DELETED)
+  ============================================================ */
   const fetchUnits = async () => {
     setLoading(true);
     setError(null);
-    try {
-      // ACTIVE
-      const resActive = await api.get("/units");
-      const activeData = resActive.data?.data || resActive.data || [];
-      setUnits(Array.isArray(activeData) ? activeData : []);
 
-      // DELETED
-      const resDeleted = await api.get("/units?deleted=true");
-      const deletedData = resDeleted.data?.data || resDeleted.data || [];
-      setDeletedUnits(Array.isArray(deletedData) ? deletedData : []);
+    try {
+      const active = await api.get("/units");
+      const deleted = await api.get("/units?deleted=true");
+
+      setUnits(active.data?.data || []);
+      setDeletedUnits(deleted.data?.data || []);
     } catch (err) {
+      console.error(err);
       setError(err.message || "Failed to load units");
     } finally {
       setLoading(false);
@@ -52,29 +50,47 @@ export default function UnitManagement() {
     fetchUnits();
   }, []);
 
-  /* ============================
-      CREATE UNIT
-     ============================ */
+  /* ============================================================
+        CREATE
+  ============================================================ */
   const createUnit = async (e) => {
     e.preventDefault();
     if (!newUnitName.trim()) return;
 
     try {
-      await api.post("/units", { name: newUnitName.trim() });
+      setActionLoading(true);
+      await api.post("/units", { name: newUnitName });
       setNewUnitName("");
       fetchUnits();
     } catch (err) {
       alert("Create failed: " + (err.response?.data?.message || err.message));
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  /* ============================
-      UPDATE UNIT
-     ============================ */
-
+  /* ============================================================
+        EDIT
+  ============================================================ */
   const startEdit = (unit) => {
     setEditingId(unit.id);
     setEditingName(unit.name);
+  };
+
+  const saveEdit = async (id) => {
+    if (!editingName.trim()) return;
+
+    try {
+      setActionLoading(true);
+      await api.put(`/units/${id}`, { name: editingName.trim() });
+      setEditingId(null);
+      setEditingName("");
+      fetchUnits();
+    } catch (err) {
+      alert("Update failed: " + (err.response?.data?.message || err.message));
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const cancelEdit = () => {
@@ -82,69 +98,78 @@ export default function UnitManagement() {
     setEditingName("");
   };
 
-  const saveEdit = async (id) => {
-    if (!editingName.trim()) return;
-
-    try {
-      await api.put(`/units/${id}`, { name: editingName.trim() });
-      cancelEdit();
-      fetchUnits();
-    } catch (err) {
-      alert("Update failed: " + (err.response?.data?.message || err.message));
-    }
-  };
-
-  /* ============================
-      SOFT DELETE
-     ============================ */
+  /* ============================================================
+        SOFT DELETE
+  ============================================================ */
   const deleteUnit = async (id) => {
     if (!window.confirm("Hapus unit ini? (Soft Delete)")) return;
 
     try {
+      setActionLoading(true);
       await api.delete(`/units/${id}`);
       fetchUnits();
     } catch (err) {
       alert("Delete failed: " + (err.response?.data?.message || err.message));
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  /* ============================
-      RESTORE
-     ============================ */
+  /* ============================================================
+        RESTORE
+  ============================================================ */
   const restoreUnit = async (id) => {
     try {
+      setActionLoading(true);
       await api.put(`/units/${id}/restore`);
       fetchUnits();
     } catch (err) {
       alert("Restore failed: " + (err.response?.data?.message || err.message));
+    } finally {
+      setActionLoading(false);
     }
   };
 
-  /* ============================
-      HARD DELETE
-     ============================ */
+  /* ============================================================
+        HARD DELETE (PERMANENT DELETE)
+  ============================================================ */
   const hardDeleteUnit = async (id) => {
-    if (!window.confirm("Hapus permanen data ini?")) return;
-
+    console.log("HARD DELETE → ID:", id);
+  
+    const confirmDelete = window.confirm(
+      "Yakin ingin menghapus data ini secara permanen?\nTindakan ini tidak bisa dibatalkan."
+    );
+  
+    if (!confirmDelete) return;
+  
     try {
-      await api.delete(`/units/${id}/permanent`);
-      fetchUnits();
-    } catch (err) {
+      setActionLoading(true);
+  
+      const response = await api.delete(`/units/${id}/permanent`);
+      console.log("Hard delete response:", response.data);
+  
+      alert("Unit berhasil dihapus permanen!");
+      fetchUnits(); // refresh data
+    } catch (error) {
+      console.error("Hard delete error:", error);
+  
       alert(
-        "Hard delete failed: " +
-          (err.response?.data?.message || err.message)
+        error.response?.data?.message ||
+        "Gagal menghapus permanen. Pastikan data sudah di-soft delete dulu."
       );
+    } finally {
+      setActionLoading(false);
     }
-  };
+  };  
 
-  /* ============================
-      UI
-     ============================ */
+  /* ============================================================
+        UI
+  ============================================================ */
   return (
     <Layout>
-      <div className="min-h-screen bg-gray-50 p-6 md:p-12 font-sans text-gray-800">
+      <div className="min-h-screen bg-gray-50 p-6 md:p-12 text-gray-800">
         <div className="max-w-5xl mx-auto">
-          
+
           {/* HEADER */}
           <header className="mb-8">
             <h1 className="text-3xl font-bold text-slate-800">Unit Management</h1>
@@ -160,21 +185,24 @@ export default function UnitManagement() {
           >
             <h2 className="font-semibold mb-3">Create a New Unit</h2>
 
-            <label className="block text-sm text-slate-600 mb-2">Unit Name</label>
+            <label className="block text-sm mb-2 text-slate-600">
+              Unit Name
+            </label>
 
             <div className="flex gap-3 items-center">
               <input
                 value={newUnitName}
                 onChange={(e) => setNewUnitName(e.target.value)}
-                placeholder="type new unit here"
+                placeholder="Type new unit here..."
                 className="flex-1 border rounded-md px-4 py-3 text-sm bg-gray-50 focus:ring-2 focus:ring-blue-300"
               />
 
               <button
                 type="submit"
-                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700"
+                disabled={actionLoading}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-blue-300"
               >
-                Create Unit
+                {actionLoading ? "Processing..." : "Create Unit"}
               </button>
             </div>
           </form>
@@ -186,8 +214,7 @@ export default function UnitManagement() {
             </h3>
 
             <div className="bg-white border rounded-lg overflow-hidden">
-
-              <div className="grid grid-cols-12 px-6 py-3 text-xs text-slate-500 bg-slate-50 border-b">
+              <div className="grid grid-cols-12 px-6 py-3 bg-slate-50 border-b text-xs text-slate-500">
                 <div className="col-span-10">UNIT NAME</div>
                 <div className="col-span-2 text-right">ACTIONS</div>
               </div>
@@ -196,13 +223,13 @@ export default function UnitManagement() {
                 <div className="p-6 text-center text-slate-500">Loading...</div>
               ) : units.length === 0 ? (
                 <div className="p-6 text-center text-slate-500">
-                  No units yet — create one above.
+                  No units found.
                 </div>
               ) : (
                 units.map((unit) => (
                   <div
                     key={unit.id}
-                    className="grid grid-cols-12 items-center px-6 py-4 border-b"
+                    className="grid grid-cols-12 px-6 py-4 border-b items-center"
                   >
                     <div className="col-span-10">
                       {editingId === unit.id ? (
@@ -212,7 +239,7 @@ export default function UnitManagement() {
                           className="w-full border rounded-md px-3 py-2 text-sm"
                         />
                       ) : (
-                        <div className="text-sm text-slate-700">{unit.name}</div>
+                        <span className="text-sm">{unit.name}</span>
                       )}
                     </div>
 
@@ -221,14 +248,13 @@ export default function UnitManagement() {
                         <>
                           <button
                             onClick={() => saveEdit(unit.id)}
-                            className="px-3 py-1.5 text-sm bg-green-600 text-white rounded-md"
+                            className="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm"
                           >
                             Save
                           </button>
-
                           <button
                             onClick={cancelEdit}
-                            className="px-3 py-1.5 text-sm bg-gray-200 rounded-md"
+                            className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
                           >
                             Cancel
                           </button>
@@ -241,8 +267,8 @@ export default function UnitManagement() {
                           >
                             <FontAwesomeIcon
                               icon={faPenToSquare}
-                              style={{ color: "#FFD43B" }}
                               size="lg"
+                              style={{ color: "#FFD43B" }}
                             />
                           </button>
 
@@ -252,8 +278,8 @@ export default function UnitManagement() {
                           >
                             <FontAwesomeIcon
                               icon={faTrashCan}
-                              style={{ color: "#ff0000" }}
                               size="lg"
+                              style={{ color: "#ff0000" }}
                             />
                           </button>
                         </>
@@ -265,15 +291,14 @@ export default function UnitManagement() {
             </div>
           </section>
 
-          {/* SOFT DELETED UNITS */}
-          <section className="mt-12">
+          {/* DELETED UNITS */}
+          <section className="mt-10">
             <h3 className="text-lg font-medium text-slate-700 mb-3">
               Soft Deleted Units
             </h3>
 
             <div className="bg-white border rounded-lg overflow-hidden">
-
-              <div className="grid grid-cols-12 px-6 py-3 text-xs text-slate-500 bg-slate-50 border-b">
+              <div className="grid grid-cols-12 px-6 py-3 bg-slate-50 border-b text-xs text-slate-500">
                 <div className="col-span-8">UNIT NAME</div>
                 <div className="col-span-4 text-right">ACTIONS</div>
               </div>
@@ -286,7 +311,7 @@ export default function UnitManagement() {
                 deletedUnits.map((unit) => (
                   <div
                     key={unit.id}
-                    className="grid grid-cols-12 items-center px-6 py-4 border-b"
+                    className="grid grid-cols-12 px-6 py-4 border-b items-center"
                   >
                     <div className="col-span-8 text-sm">{unit.name}</div>
 
@@ -318,7 +343,6 @@ export default function UnitManagement() {
               )}
             </div>
           </section>
-
         </div>
       </div>
     </Layout>
