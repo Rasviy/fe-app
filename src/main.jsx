@@ -8,6 +8,9 @@ import Dashboard from "./pages/dashboard.jsx";
 import Unit from "./components/unit/unit.jsx";
 import Category from "./components/category/category.jsx";
 import Item from "./components/item/item.jsx";
+import Warehouse from "./components/warehouse/warehouse.jsx";
+import Sku from "./components/sku/sku.jsx";
+import ScanQr from "./components/scan-qr/scan-qr.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
@@ -18,6 +21,9 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <Route path="/unit" element={<Unit />} />
       <Route path="/category" element={<Category />} />
       <Route path="/item" element={<Item />} />
+      <Route path="/warehouse" element={<Warehouse />} />
+      <Route path="/sku" element={<Sku />} />
+      <Route path="/scan-qr" element={<ScanQr />} />
     </Routes>
   </BrowserRouter>
 );

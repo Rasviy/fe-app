@@ -106,7 +106,7 @@ export default function UnitManagement() {
 
     try {
       setActionLoading(true);
-      await api.delete(`/units/${id}`);
+      await api.patch(`/units/${id}`);
       fetchUnits();
     } catch (err) {
       alert("Delete failed: " + (err.response?.data?.message || err.message));

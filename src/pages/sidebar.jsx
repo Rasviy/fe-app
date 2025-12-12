@@ -11,7 +11,9 @@ import {
   faHouse,
   faWarehouse,
   faSuitcase,
-  faLayerGroup
+  faLayerGroup,
+  faBook,
+  faQrcode
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { useEffect, useState } from "react";
@@ -25,7 +27,9 @@ export default function Sidebar() {
     { name: "Unit", icon: faSuitcase, path: "/unit" },
     { name: "Category", icon: faLayerGroup, path: "/category" },
     { name: "Item", icon: faBoxes, path: "/item" },
-    { name: "Gudang", icon: faWarehouse, path: "/transaction" },
+    { name: "Gudang", icon: faWarehouse, path: "/warehouse" },
+    { name: "SKU", icon: faBook, path: "/sku" },
+    { name: "SCAN-QR", icon: faQrcode, path: "/scan-qr" },
     { name: "Transaction", icon: faRepeat, path: "/transaction" },
   ];
 
