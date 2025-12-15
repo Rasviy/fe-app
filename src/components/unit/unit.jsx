@@ -26,18 +26,15 @@ export default function UnitManagement() {
   const [editingName, setEditingName] = useState("");
 
   /* ============================================================
-        FETCH UNITS (ACTIVE + DELETED)
+        FETCH ACTIVE UNITS ONLY
   ============================================================ */
   const fetchUnits = async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const active = await api.get("/units");
-      const deleted = await api.get("/units?deleted=true");
-
-      setUnits(active.data?.data || []);
-      setDeletedUnits(deleted.data?.data || []);
+      const res = await api.get("/units");
+      setUnits(res.data?.data || []);
     } catch (err) {
       console.error(err);
       setError(err.message || "Failed to load units");
@@ -63,7 +60,7 @@ export default function UnitManagement() {
       setNewUnitName("");
       fetchUnits();
     } catch (err) {
-      alert("Create failed: " + (err.response?.data?.message || err.message));
+      alert("Create failed");
     } finally {
       setActionLoading(false);
     }
@@ -87,7 +84,7 @@ export default function UnitManagement() {
       setEditingName("");
       fetchUnits();
     } catch (err) {
-      alert("Update failed: " + (err.response?.data?.message || err.message));
+      alert("Update failed");
     } finally {
       setActionLoading(false);
     }
@@ -99,7 +96,7 @@ export default function UnitManagement() {
   };
 
   /* ============================================================
-        SOFT DELETE
+        SOFT DELETE → PINDAH KE DELETED LIST
   ============================================================ */
   const deleteUnit = async (id) => {
     if (!window.confirm("Hapus unit ini? (Soft Delete)")) return;
@@ -107,9 +104,15 @@ export default function UnitManagement() {
     try {
       setActionLoading(true);
       await api.patch(`/units/${id}`);
-      fetchUnits();
+
+      const deleted = units.find((u) => u.id === id);
+
+      setUnits((prev) => prev.filter((u) => u.id !== id));
+      setDeletedUnits((prev) =>
+        deleted ? [...prev, deleted] : prev
+      );
     } catch (err) {
-      alert("Delete failed: " + (err.response?.data?.message || err.message));
+      alert("Delete failed");
     } finally {
       setActionLoading(false);
     }
@@ -122,45 +125,39 @@ export default function UnitManagement() {
     try {
       setActionLoading(true);
       await api.put(`/units/${id}/restore`);
-      fetchUnits();
+
+      const restored = deletedUnits.find((u) => u.id === id);
+
+      setDeletedUnits((prev) => prev.filter((u) => u.id !== id));
+      setUnits((prev) =>
+        restored ? [...prev, restored] : prev
+      );
     } catch (err) {
-      alert("Restore failed: " + (err.response?.data?.message || err.message));
+      alert("Restore failed");
     } finally {
       setActionLoading(false);
     }
   };
 
   /* ============================================================
-        HARD DELETE (PERMANENT DELETE)
+        HARD DELETE (PERMANENT)
   ============================================================ */
   const hardDeleteUnit = async (id) => {
-    console.log("HARD DELETE → ID:", id);
-  
     const confirmDelete = window.confirm(
-      "Yakin ingin menghapus data ini secara permanen?\nTindakan ini tidak bisa dibatalkan."
+      "Yakin ingin menghapus data ini secara permanen?"
     );
-  
     if (!confirmDelete) return;
-  
+
     try {
       setActionLoading(true);
-  
-      const response = await api.delete(`/units/${id}/permanent`);
-      console.log("Hard delete response:", response.data);
-  
-      alert("Unit berhasil dihapus permanen!");
-      fetchUnits(); // refresh data
-    } catch (error) {
-      console.error("Hard delete error:", error);
-  
-      alert(
-        error.response?.data?.message ||
-        "Gagal menghapus permanen. Pastikan data sudah di-soft delete dulu."
-      );
+      await api.delete(`/units/${id}/permanent`);
+      setDeletedUnits((prev) => prev.filter((u) => u.id !== id));
+    } catch (err) {
+      alert("Hard delete failed");
     } finally {
       setActionLoading(false);
     }
-  };  
+  };
 
   /* ============================================================
         UI
@@ -170,117 +167,74 @@ export default function UnitManagement() {
       <div className="min-h-screen bg-gray-50 p-6 md:p-12 text-gray-800">
         <div className="max-w-5xl mx-auto">
 
-          {/* HEADER */}
           <header className="mb-8">
-            <h1 className="text-3xl font-bold text-slate-800">Unit Management</h1>
-            <p className="text-sm text-slate-500 mt-1">
-              Create, edit, delete, and restore measurement units.
+            <h1 className="text-3xl font-bold">Unit Management</h1>
+            <p className="text-sm text-slate-500">
+              Create, edit, delete, and restore units
             </p>
           </header>
 
-          {/* CREATE FORM */}
+          {/* CREATE */}
           <form
             onSubmit={createUnit}
-            className="bg-white rounded-xl shadow-sm p-6 mb-8 border"
+            className="bg-white p-6 rounded-xl border mb-8"
           >
-            <h2 className="font-semibold mb-3">Create a New Unit</h2>
-
-            <label className="block text-sm mb-2 text-slate-600">
-              Unit Name
-            </label>
-
-            <div className="flex gap-3 items-center">
+            <div className="flex gap-3">
               <input
                 value={newUnitName}
                 onChange={(e) => setNewUnitName(e.target.value)}
-                placeholder="Type new unit here..."
-                className="flex-1 border rounded-md px-4 py-3 text-sm bg-gray-50 focus:ring-2 focus:ring-blue-300"
+                placeholder="New unit name"
+                className="flex-1 border px-4 py-2 rounded-md"
               />
-
               <button
-                type="submit"
                 disabled={actionLoading}
-                className="px-4 py-2 bg-blue-600 text-white rounded-md text-sm hover:bg-blue-700 disabled:bg-blue-300"
+                className="px-4 py-2 bg-blue-600 text-white rounded-md"
               >
-                {actionLoading ? "Processing..." : "Create Unit"}
+                Create
               </button>
             </div>
           </form>
 
-          {/* ACTIVE UNITS */}
+          {/* ACTIVE */}
           <section>
-            <h3 className="text-lg font-medium text-slate-700 mb-3">
-              Existing Units
-            </h3>
+            <h3 className="font-medium mb-3">Active Units</h3>
 
-            <div className="bg-white border rounded-lg overflow-hidden">
-              <div className="grid grid-cols-12 px-6 py-3 bg-slate-50 border-b text-xs text-slate-500">
-                <div className="col-span-10">UNIT NAME</div>
-                <div className="col-span-2 text-right">ACTIONS</div>
-              </div>
-
+            <div className="bg-white border rounded-lg">
               {loading ? (
-                <div className="p-6 text-center text-slate-500">Loading...</div>
+                <div className="p-6 text-center">Loading...</div>
               ) : units.length === 0 ? (
-                <div className="p-6 text-center text-slate-500">
-                  No units found.
+                <div className="p-6 text-center text-gray-400">
+                  No units found
                 </div>
               ) : (
                 units.map((unit) => (
                   <div
                     key={unit.id}
-                    className="grid grid-cols-12 px-6 py-4 border-b items-center"
+                    className="flex justify-between items-center px-6 py-4 border-b"
                   >
-                    <div className="col-span-10">
-                      {editingId === unit.id ? (
-                        <input
-                          value={editingName}
-                          onChange={(e) => setEditingName(e.target.value)}
-                          className="w-full border rounded-md px-3 py-2 text-sm"
-                        />
-                      ) : (
-                        <span className="text-sm">{unit.name}</span>
-                      )}
-                    </div>
+                    {editingId === unit.id ? (
+                      <input
+                        value={editingName}
+                        onChange={(e) => setEditingName(e.target.value)}
+                        className="border px-3 py-2 rounded-md"
+                      />
+                    ) : (
+                      <span>{unit.name}</span>
+                    )}
 
-                    <div className="col-span-2 flex justify-end gap-3">
+                    <div className="flex gap-3">
                       {editingId === unit.id ? (
                         <>
-                          <button
-                            onClick={() => saveEdit(unit.id)}
-                            className="px-3 py-1.5 bg-green-600 text-white rounded-md text-sm"
-                          >
-                            Save
-                          </button>
-                          <button
-                            onClick={cancelEdit}
-                            className="px-3 py-1.5 bg-gray-200 rounded-md text-sm"
-                          >
-                            Cancel
-                          </button>
+                          <button onClick={() => saveEdit(unit.id)}>Save</button>
+                          <button onClick={cancelEdit}>Cancel</button>
                         </>
                       ) : (
                         <>
-                          <button
-                            onClick={() => startEdit(unit)}
-                            className="p-2 hover:bg-gray-100 rounded-md"
-                          >
-                            <FontAwesomeIcon
-                              icon={faPenToSquare}
-                              size="lg"
-                              style={{ color: "#FFD43B" }}
-                            />
+                          <button onClick={() => startEdit(unit)}>
+                            <FontAwesomeIcon icon={faPenToSquare} />
                           </button>
-
-                          <button
-                            onClick={() => deleteUnit(unit.id)}
-                            className="p-2 hover:bg-gray-100 rounded-md"
-                          >
-                            <FontAwesomeIcon
-                              icon={faTrashCan}
-                              size="lg"
-                              style={{ color: "#ff0000" }}
-                            />
+                          <button onClick={() => deleteUnit(unit.id)}>
+                            <FontAwesomeIcon icon={faTrashCan} />
                           </button>
                         </>
                       )}
@@ -291,58 +245,34 @@ export default function UnitManagement() {
             </div>
           </section>
 
-          {/* DELETED UNITS */}
-          <section className="mt-10">
-            <h3 className="text-lg font-medium text-slate-700 mb-3">
-              Soft Deleted Units
-            </h3>
+          {/* SOFT DELETED – ONLY APPEARS AFTER DELETE */}
+          {deletedUnits.length > 0 && (
+            <section className="mt-10">
+              <h3 className="font-medium mb-3 text-red-600">
+                Soft Deleted Units
+              </h3>
 
-            <div className="bg-white border rounded-lg overflow-hidden">
-              <div className="grid grid-cols-12 px-6 py-3 bg-slate-50 border-b text-xs text-slate-500">
-                <div className="col-span-8">UNIT NAME</div>
-                <div className="col-span-4 text-right">ACTIONS</div>
-              </div>
-
-              {deletedUnits.length === 0 ? (
-                <div className="p-6 text-center text-slate-500">
-                  No soft deleted units.
-                </div>
-              ) : (
-                deletedUnits.map((unit) => (
+              <div className="bg-white border rounded-lg">
+                {deletedUnits.map((unit) => (
                   <div
                     key={unit.id}
-                    className="grid grid-cols-12 px-6 py-4 border-b items-center"
+                    className="flex justify-between items-center px-6 py-4 border-b"
                   >
-                    <div className="col-span-8 text-sm">{unit.name}</div>
+                    <span>{unit.name}</span>
 
-                    <div className="col-span-4 flex justify-end gap-4">
-                      <button
-                        onClick={() => restoreUnit(unit.id)}
-                        className="p-2 hover:bg-gray-100 rounded-md"
-                      >
-                        <FontAwesomeIcon
-                          icon={faRotateLeft}
-                          size="lg"
-                          style={{ color: "#3b82f6" }}
-                        />
+                    <div className="flex gap-4">
+                      <button onClick={() => restoreUnit(unit.id)}>
+                        <FontAwesomeIcon icon={faRotateLeft} />
                       </button>
-
-                      <button
-                        onClick={() => hardDeleteUnit(unit.id)}
-                        className="p-2 hover:bg-gray-100 rounded-md"
-                      >
-                        <FontAwesomeIcon
-                          icon={faTrash}
-                          size="lg"
-                          style={{ color: "#dc2626" }}
-                        />
+                      <button onClick={() => hardDeleteUnit(unit.id)}>
+                        <FontAwesomeIcon icon={faTrash} />
                       </button>
                     </div>
                   </div>
-                ))
-              )}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
+          )}
         </div>
       </div>
     </Layout>
