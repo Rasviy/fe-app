@@ -2,10 +2,7 @@
 import { NavLink, useNavigate } from "react-router-dom";
 import {
   faUser,
-  faGauge,
   faBoxes,
-  faRightLeft,
-  faBarcode,
   faRepeat,
   faArrowRightFromBracket,
   faHouse,
@@ -33,7 +30,6 @@ export default function Sidebar() {
     { name: "Transaction", icon: faRepeat, path: "/transaction" },
   ];
 
-  // Ambil username dari localStorage saat mount
   useEffect(() => {
     const user = JSON.parse(localStorage.getItem("user"));
     if (user && user.username) {
@@ -41,7 +37,6 @@ export default function Sidebar() {
     }
   }, []);
 
-  // Logout function
   const handleLogout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
@@ -49,10 +44,12 @@ export default function Sidebar() {
   };
 
   return (
-    <div className="h-screen w-60 bg-white border-r flex flex-col justify-between p-4">
+    <aside className="fixed top-0 left-0 h-screen w-60 bg-white border-r flex flex-col justify-between p-4">
       {/* Header */}
       <div>
-        <h1 className="text-xl font-bold text-blue-600 mb-6">Inventaris</h1>
+        <h1 className="text-xl font-bold text-blue-600 mb-6">
+          Inventaris
+        </h1>
 
         {/* Profile */}
         <div className="flex items-center gap-3 mb-6">
@@ -73,7 +70,11 @@ export default function Sidebar() {
               to={item.path}
               className={({ isActive }) =>
                 `flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition
-                ${isActive ? "bg-blue-100 text-blue-600" : "text-gray-700 hover:bg-gray-100"}`
+                ${
+                  isActive
+                    ? "bg-blue-100 text-blue-600"
+                    : "text-gray-700 hover:bg-gray-100"
+                }`
               }
             >
               <FontAwesomeIcon icon={item.icon} />
@@ -84,15 +85,13 @@ export default function Sidebar() {
       </div>
 
       {/* Logout */}
-      <div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-3 text-gray-700 hover:text-red-500 text-sm"
-        >
-          <FontAwesomeIcon icon={faArrowRightFromBracket} />
-          Keluar
-        </button>
-      </div>
-    </div>
+      <button
+        onClick={handleLogout}
+        className="flex items-center gap-3 text-gray-700 hover:text-red-500 text-sm"
+      >
+        <FontAwesomeIcon icon={faArrowRightFromBracket} />
+        Keluar
+      </button>
+    </aside>
   );
 }

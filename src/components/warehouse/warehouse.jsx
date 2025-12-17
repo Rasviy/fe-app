@@ -11,22 +11,55 @@ import {
     faTrash,
 } from "@fortawesome/free-solid-svg-icons";
 
-// Badge Status
+// ============================
+// FORMAT DATETIME HELPER
+// ============================
+function formatDateTime(dateString) {
+    if (!dateString) return '-';
+    const date = new Date(dateString);
+
+    return date.toLocaleString("id-ID", {
+        day: "2-digit",
+        month: "long",
+        year: "numeric",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+    });
+}
+
+// ============================
+// STATUS BADGE (ACTIVE / INACTIVE / DELETED)
+// ============================
 function StatusBadge({ status }) {
-    const isActive = (status || '').toLowerCase() === 'active';
+    const value = (status || '').toLowerCase();
+
+    let className = 'bg-gray-100 text-gray-800';
+    let label = status;
+
+    if (value === 'active') {
+        className = 'bg-green-100 text-green-800';
+        label = 'Active';
+    } else if (value === 'inactive') {
+        className = 'bg-yellow-100 text-yellow-800';
+        label = 'Inactive';
+    } else if (value === 'deleted') {
+        className = 'bg-red-100 text-red-800';
+        label = 'Deleted';
+    }
+
     return (
         <span
-            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${isActive ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'
-                }`}
+            className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold ${className}`}
         >
-            {isActive ? 'Active' : 'Inactive'}
+            {label}
         </span>
     );
 }
 
 export default function WarehousePage() {
-    const [list, setList] = useState([]); // Active list
-    const [deletedList, setDeletedList] = useState([]); // Soft deleted list
+    const [list, setList] = useState([]);
+    const [deletedList, setDeletedList] = useState([]);
 
     const [loading, setLoading] = useState(false);
     const [loadingDeleted, setLoadingDeleted] = useState(false);
@@ -39,7 +72,9 @@ export default function WarehousePage() {
     const [editing, setEditing] = useState(null);
     const [saving, setSaving] = useState(false);
 
-    // Fetch Active Warehouses
+    // ============================
+    // FETCH ACTIVE
+    // ============================
     async function fetchList() {
         setLoading(true);
         try {
@@ -51,7 +86,9 @@ export default function WarehousePage() {
         }
     }
 
-    // Fetch Soft Deleted Warehouses
+    // ============================
+    // FETCH DELETED
+    // ============================
     async function fetchDeleted() {
         setLoadingDeleted(true);
         try {
@@ -68,16 +105,22 @@ export default function WarehousePage() {
         fetchDeleted();
     }, []);
 
+    // ============================
     // CREATE
+    // ============================
     async function handleCreate(e) {
         e.preventDefault();
         setSaving(true);
         try {
-            const body = { name, address, status, created_by: createdBy };
             await fetch(API_BASE, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(body),
+                body: JSON.stringify({
+                    name,
+                    address,
+                    status,
+                    created_by: createdBy,
+                }),
             });
             setName('');
             setAddress('');
@@ -89,12 +132,9 @@ export default function WarehousePage() {
         }
     }
 
-    // OPEN EDIT MODAL
-    function openEdit(item) {
-        setEditing({ ...item });
-    }
-
+    // ============================
     // UPDATE
+    // ============================
     async function handleUpdate(e) {
         e.preventDefault();
         setSaving(true);
@@ -111,7 +151,9 @@ export default function WarehousePage() {
         }
     }
 
-    // SOFT DELETE
+    // ============================
+    // DELETE ACTIONS
+    // ============================
     async function handleSoftDelete(id) {
         if (!confirm('Yakin ingin soft delete?')) return;
         await fetch(`${API_BASE}/${id}/soft-delete`, { method: 'PATCH' });
@@ -119,14 +161,12 @@ export default function WarehousePage() {
         fetchDeleted();
     }
 
-    // RESTORE
     async function handleRestore(id) {
         await fetch(`${API_BASE}/${id}/restore`, { method: 'PUT' });
         fetchList();
         fetchDeleted();
     }
 
-    // HARD DELETE
     async function handleHardDelete(id) {
         if (!confirm('Hapus permanen?')) return;
         await fetch(`${API_BASE}/${id}/hard-delete`, { method: 'DELETE' });
@@ -138,8 +178,8 @@ export default function WarehousePage() {
             <div className="max-w-5xl mx-auto">
 
                 {/* ============================
-            CREATE FORM
-        ============================ */}
+                CREATE FORM
+                ============================ */}
                 <div className="bg-white rounded-lg shadow p-6 mb-6">
                     <h2 className="text-lg font-semibold mb-4">Create New Warehouse</h2>
 
@@ -188,55 +228,37 @@ export default function WarehousePage() {
                 </div>
 
                 {/* ============================
-            ACTIVE WAREHOUSE TABLE
-        ============================ */}
+                ACTIVE TABLE
+                ============================ */}
                 <div className="bg-white rounded-lg shadow p-6 mb-6">
                     <h3 className="font-semibold mb-4">Existing Warehouses</h3>
 
                     {loading ? (
                         <p className="text-center py-5">Loading...</p>
-                    ) : list.length === 0 ? (
-                        <p className="text-center py-5 text-gray-500">No warehouses found.</p>
                     ) : (
                         <table className="w-full text-sm">
                             <thead>
                                 <tr className="text-xs text-gray-500 border-b">
-                                    <th className="py-2">Name</th>
-                                    <th className="py-2">Address</th>
-                                    <th className="py-2">Status</th>
-                                    <th className="py-2">Created By</th>
-                                    <th className="py-2 text-right">Actions</th>
+                                    <th>Name</th>
+                                    <th>Address</th>
+                                    <th>Status</th>
+                                    <th>Created By</th>
+                                    <th className="text-right">Actions</th>
                                 </tr>
                             </thead>
                             <tbody>
                                 {list.map((w) => (
                                     <tr key={w.id} className="border-b hover:bg-gray-50">
-                                        <td className="py-3">{w.name}</td>
-                                        <td className="py-3">{w.address}</td>
-                                        <td className="py-3"><StatusBadge status={w.status} /></td>
-                                        <td className="py-3">{w.created_by || '-'}</td>
-
-                                        <td className="py-3 text-right space-x-2">
-                                            <button
-                                                onClick={() => openEdit(w)}
-                                                className="px-3 py-1 border rounded"
-                                            >
-                                                <FontAwesomeIcon
-                                                    icon={faPenToSquare}
-                                                    size="lg"
-                                                    style={{ color: "#FFD43B" }}
-                                                />
+                                        <td>{w.name}</td>
+                                        <td>{w.address}</td>
+                                        <td><StatusBadge status={w.status} /></td>
+                                        <td>{w.created_by || '-'}</td>
+                                        <td className="text-right space-x-2">
+                                            <button onClick={() => setEditing(w)}>
+                                                <FontAwesomeIcon icon={faPenToSquare} />
                                             </button>
-
-                                            <button
-                                                onClick={() => handleSoftDelete(w.id)}
-                                                className="px-3 py-1 border rounded"
-                                            >
-                                                <FontAwesomeIcon
-                                                    icon={faTrashCan}
-                                                    size="lg"
-                                                    style={{ color: "#ff0000" }}
-                                                />
+                                            <button onClick={() => handleSoftDelete(w.id)}>
+                                                <FontAwesomeIcon icon={faTrashCan} />
                                             </button>
                                         </td>
                                     </tr>
@@ -247,116 +269,46 @@ export default function WarehousePage() {
                 </div>
 
                 {/* ============================
-            SOFT DELETED TABLE (ONLY IF DATA EXIST)
-        ============================ */}
+                SOFT DELETED TABLE
+                ============================ */}
                 {deletedList.length > 0 && (
-                    <div className="bg-white rounded-lg shadow p-6 mb-6">
-                        <h3 className="font-semibold mb-4 text-red-600">Recycle Bin (Soft Deleted)</h3>
+                    <div className="bg-white rounded-lg shadow p-6">
+                        <h3 className="font-semibold mb-4 text-red-600">Recycle Bin</h3>
 
-                        {loadingDeleted ? (
-                            <p className="text-center py-5">Loading...</p>
-                        ) : (
-                            <table className="w-full text-sm">
-                                <thead>
-                                    <tr className="text-xs text-gray-500 border-b">
-                                        <th className="py-2">Name</th>
-                                        <th className="py-2">Address</th>
-                                        <th className="py-2">Status</th>
-                                        <th className="py-2">Deleted At</th>
-                                        <th className="py-2 text-right">Actions</th>
+                        <table className="w-full text-sm">
+                            <thead>
+                                <tr className="text-xs text-gray-500 border-b">
+                                    <th>Name</th>
+                                    <th>Address</th>
+                                    <th>Status</th>
+                                    <th>Deleted At</th>
+                                    <th className="text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {deletedList.map((w) => (
+                                    <tr key={w.id} className="border-b hover:bg-gray-50">
+                                        <td>{w.name}</td>
+                                        <td>{w.address}</td>
+                                        <td>
+                                            {/* FORCE STATUS = DELETED */}
+                                            <StatusBadge status="Deleted" />
+                                        </td>
+                                        <td className="text-red-600">
+                                            {formatDateTime(w.deleted_at)}
+                                        </td>
+                                        <td className="text-right space-x-2">
+                                            <button onClick={() => handleRestore(w.id)}>
+                                                <FontAwesomeIcon icon={faRotateLeft} />
+                                            </button>
+                                            <button onClick={() => handleHardDelete(w.id)}>
+                                                <FontAwesomeIcon icon={faTrash} />
+                                            </button>
+                                        </td>
                                     </tr>
-                                </thead>
-                                <tbody>
-                                    {deletedList.map((w) => (
-                                        <tr key={w.id} className="border-b hover:bg-gray-50">
-                                            <td className="py-3">{w.name}</td>
-                                            <td className="py-3">{w.address}</td>
-                                            <td className="py-3"><StatusBadge status={w.status} /></td>
-                                            <td className="py-3 text-red-500">{w.deleted_at}</td>
-
-                                            <td className="py-3 text-right space-x-2">
-                                                <button
-                                                    onClick={() => handleRestore(w.id)}
-                                                    className="px-3 py-1 border rounded text-green-700"
-                                                >
-                                                    <FontAwesomeIcon
-                                                        icon={faRotateLeft}
-                                                        size="lg"
-                                                        style={{ color: "#3b82f6" }}
-                                                    />
-                                                </button>
-
-                                                <button
-                                                    onClick={() => handleHardDelete(w.id)}
-                                                    className="px-3 py-1 border rounded text-red-700"
-                                                >
-                                                    <FontAwesomeIcon
-                                                        icon={faTrash}
-                                                        size="lg"
-                                                        style={{ color: "#dc2626" }}
-                                                    />
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
-                )}
-
-                {/* EDIT MODAL */}
-                {editing && (
-                    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-                        <div className="bg-white p-6 rounded-lg w-full max-w-lg">
-                            <h3 className="text-lg font-semibold mb-4">Edit Warehouse</h3>
-
-                            <form onSubmit={handleUpdate} className="space-y-3">
-                                <input
-                                    className="w-full border rounded px-3 py-2"
-                                    value={editing.name}
-                                    onChange={(e) =>
-                                        setEditing({ ...editing, name: e.target.value })
-                                    }
-                                />
-
-                                <input
-                                    className="w-full border rounded px-3 py-2"
-                                    value={editing.address}
-                                    onChange={(e) =>
-                                        setEditing({ ...editing, address: e.target.value })
-                                    }
-                                />
-
-                                <select
-                                    className="w-full border rounded px-3 py-2"
-                                    value={editing.status}
-                                    onChange={(e) =>
-                                        setEditing({ ...editing, status: e.target.value })
-                                    }
-                                >
-                                    <option>Active</option>
-                                    <option>Inactive</option>
-                                </select>
-
-                                <div className="flex justify-end gap-2">
-                                    <button
-                                        type="button"
-                                        onClick={() => setEditing(null)}
-                                        className="px-4 py-2 border rounded"
-                                    >
-                                        Cancel
-                                    </button>
-
-                                    <button
-                                        type="submit"
-                                        className="px-4 py-2 bg-blue-600 text-white rounded"
-                                    >
-                                        Save Changes
-                                    </button>
-                                </div>
-                            </form>
-                        </div>
+                                ))}
+                            </tbody>
+                        </table>
                     </div>
                 )}
             </div>

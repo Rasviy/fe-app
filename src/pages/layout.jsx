@@ -1,12 +1,14 @@
 // src/components/Layout.jsx
-import Sidebar from "./sidebar";
+import Sidebar from "./Sidebar";
 
 export default function Layout({ children }) {
   return (
-    <div className="flex">
+    <div>
+      {/* Sidebar fixed */}
       <Sidebar />
 
-      <main className="flex-1 bg-gray-50 p-6 min-h-screen">
+      {/* Main Content */}
+      <main className="ml-60 bg-gray-50 p-6 min-h-screen">
         {children}
       </main>
     </div>
