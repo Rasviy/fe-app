@@ -12,6 +12,7 @@ import Warehouse from "./components/warehouse/warehouse.jsx";
 import Sku from "./components/sku/sku.jsx";
 import ScanQr from "./components/scan-qr/scan-qr.jsx";
 import Loans from "./components/loans/loans.jsx";
+import ItemMovement from "./components/item-movement/item-movement.jsx";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <BrowserRouter>
@@ -26,6 +27,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(
       <Route path="/sku" element={<Sku />} />
       <Route path="/scan-qr" element={<ScanQr />} />
       <Route path="/loans" element={<Loans />} />
+      <Route path="/item-movement" element={<ItemMovement />} />
     </Routes>
   </BrowserRouter>
 );
