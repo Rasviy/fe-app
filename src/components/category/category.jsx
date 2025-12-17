@@ -1,7 +1,10 @@
-// src/pages/CategoryPage.jsx
 import React, { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faPenToSquare, faTrashCan, faRotateLeft } from "@fortawesome/free-solid-svg-icons";
+import {
+  faPenToSquare,
+  faTrashCan,
+  faRotateLeft,
+} from "@fortawesome/free-solid-svg-icons";
 import Layout from "../../pages/layout";
 
 const API_URL = "http://localhost:3000/categories";
@@ -12,12 +15,10 @@ export default function CategoryPage() {
 
   const [name, setName] = useState("");
   const [code, setCode] = useState("");
-  const [status, setStatus] = useState("active");
 
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
   const [editCode, setEditCode] = useState("");
-  const [editStatus, setEditStatus] = useState("active");
 
   useEffect(() => {
     fetchCategories();
@@ -27,13 +28,15 @@ export default function CategoryPage() {
     const res = await fetch(API_URL);
     const data = await res.json();
 
+    // jaga-jaga kalau backend mengirim semua
     setCategories(data.filter((c) => !c.deleted_at));
     setDeletedCategories(data.filter((c) => c.deleted_at));
   }
 
-  // CREATE
+  // ================= CREATE =================
   async function handleCreate(e) {
     e.preventDefault();
+
     if (!name.trim() || !code.trim()) {
       alert("Name & code required!");
       return;
@@ -42,45 +45,34 @@ export default function CategoryPage() {
     await fetch(API_URL, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name,
-        code,
-        status,
-        deleted_at: null,
-      }),
+      body: JSON.stringify({ name, code }),
     });
 
-    fetchCategories();
     setName("");
     setCode("");
-    setStatus("active");
+    fetchCategories();
   }
 
-  // EDIT
+  // ================= EDIT =================
   function startEdit(cat) {
     setEditingId(cat.id);
     setEditName(cat.name);
     setEditCode(cat.code);
-    setEditStatus(cat.status ?? "active");
   }
 
   function cancelEdit() {
     setEditingId(null);
     setEditName("");
     setEditCode("");
-    setEditStatus("active");
   }
 
-  async function handleSaveEdit(e) {
-    e.preventDefault();
-
+  async function handleSaveEdit() {
     await fetch(`${API_URL}/${editingId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: editName,
         code: editCode,
-        status: editStatus,
       }),
     });
 
@@ -88,216 +80,199 @@ export default function CategoryPage() {
     fetchCategories();
   }
 
-  // SOFT DELETE
+  // ================= SOFT DELETE (FIXED) =================
   async function handleDelete(id) {
     if (!confirm("Hapus kategori ini?")) return;
-    
-    await fetch(`${API_URL}/${id}`, {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-    });
 
-    fetchCategories();
+    await fetch(`${API_URL}/${id}`, { method: "DELETE" });
+
+    const deletedItem = categories.find((c) => c.id === id);
+
+    if (deletedItem) {
+      setCategories((prev) => prev.filter((c) => c.id !== id));
+      setDeletedCategories((prev) => [
+        {
+          ...deletedItem,
+          deleted_at: new Date().toISOString(),
+        },
+        ...prev,
+      ]);
+    }
   }
 
-  // RESTORE
+  // ================= RESTORE =================
   async function handleRestore(id) {
-    await fetch(`${API_URL}/${id}/restore`, {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-    });
+    await fetch(`${API_URL}/${id}/restore`, { method: "PUT" });
 
-    fetchCategories();
+    const restoredItem = deletedCategories.find((c) => c.id === id);
+
+    if (restoredItem) {
+      setDeletedCategories((prev) => prev.filter((c) => c.id !== id));
+      setCategories((prev) => [
+        { ...restoredItem, deleted_at: null },
+        ...prev,
+      ]);
+    }
+  }
+
+  function formatDate(date) {
+    return new Date(date).toLocaleString("id-ID", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
   }
 
   return (
-  <Layout>
-    <div className="max-w-6xl mx-auto my-10 space-y-10">
-      <h1 className="text-3xl font-bold">Category Management</h1>
-      <p className="text-gray-500 -mt-2 mb-6">Manage active & deleted categories.</p>
+    <Layout>
+      <div className="max-w-6xl mx-auto my-10 space-y-10">
+        <h1 className="text-3xl font-bold">Category Management</h1>
 
-      {/* CREATE */}
-      <div className="bg-white p-6 rounded-xl border shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Create New Category</h2>
-
-        <form onSubmit={handleCreate} className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* CREATE */}
+        <div className="bg-white p-6 rounded-xl border">
+          <form onSubmit={handleCreate} className="grid grid-cols-2 gap-4">
             <input
-              className="border rounded-lg px-3 py-2"
+              className="border px-3 py-2 rounded"
               placeholder="Category name"
               value={name}
               onChange={(e) => setName(e.target.value)}
             />
-
             <input
-              className="border rounded-lg px-3 py-2"
+              className="border px-3 py-2 rounded"
               placeholder="Category code"
               value={code}
               onChange={(e) => setCode(e.target.value)}
             />
-          </div>
-
-          <div className="flex justify-end">
-            <button
-              type="submit"
-              className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2 rounded-lg shadow"
-            >
+            <button className="col-span-2 bg-blue-600 text-white py-2 rounded">
               + Create
             </button>
-          </div>
-        </form>
-      </div>
+          </form>
+        </div>
 
-      {/* ACTIVE CATEGORIES */}
-      <div className="bg-white p-6 rounded-xl border shadow-sm">
-        <h2 className="text-lg font-semibold mb-4">Existing Categories</h2>
+        {/* ACTIVE TABLE */}
+        <div className="bg-white p-6 rounded-xl border">
+          <h2 className="font-semibold mb-4">Existing Categories</h2>
 
-        <table className="w-full text-left">
-          <thead className="text-sm text-gray-600 border-b">
-            <tr>
-              <th className="py-2">Category Name</th>
-              <th className="py-2">Code</th>
-              <th className="py-2">Status</th>
-              <th className="py-2 text-right">Actions</th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {categories.map((cat) => {
-              const editing = editingId === cat.id;
-              return (
-                <tr key={cat.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3">
-                    {editing ? (
-                      <input
-                        className="border rounded px-2 py-1"
-                        value={editName}
-                        onChange={(e) => setEditName(e.target.value)}
-                      />
-                    ) : (
-                      <span className="font-medium">{cat.name}</span>
-                    )}
-                  </td>
-
-                  <td className="py-3">
-                    {editing ? (
-                      <input
-                        className="border rounded px-2 py-1"
-                        value={editCode}
-                        onChange={(e) => setEditCode(e.target.value)}
-                      />
-                    ) : (
-                      cat.code
-                    )}
-                  </td>
-
-                  <td className="py-3">
-                    <span className={`px-3 py-1 text-xs rounded-full ${
-                      cat.status === "active"
-                        ? "bg-green-100 text-green-700"
-                        : "bg-gray-200 text-gray-700"
-                    }`}>
-                      {cat.status}
-                    </span>
-                  </td>
-
-                  <td className="py-3 text-right space-x-4">
-                    {editing ? (
-                      <>
-                        <button
-                          onClick={handleSaveEdit}
-                          className="px-3 py-1 bg-blue-600 text-white rounded"
-                        >
-                          Save
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          className="px-3 py-1 bg-gray-200 rounded"
-                        >
-                          Cancel
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          onClick={() => startEdit(cat)}
-                          className="hover:text-yellow-600"
-                        >
-                          <FontAwesomeIcon
-                            icon={faPenToSquare}
-                            className="text-yellow-500 text-lg"
-                          />
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(cat.id)}
-                          className="hover:text-red-700"
-                        >
-                          <FontAwesomeIcon
-                            icon={faTrashCan}
-                            className="text-red-600 text-lg"
-                          />
-                        </button>
-                      </>
-                    )}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-
-      {/* SOFT DELETED */}
-      {deletedCategories.length > 0 && (
-        <div className="bg-white p-6 rounded-xl border shadow-sm">
-          <h2 className="text-lg font-semibold mb-4 text-red-600">Soft Deleted Categories</h2>
-
-          <table className="w-full text-left">
-            <thead className="text-sm text-gray-600 border-b">
-              <tr>
-                <th className="py-2">Category Name</th>
-                <th className="py-2">Code</th>
-                <th className="py-2 text-right">Actions</th>
+          <table className="w-full">
+            <thead>
+              <tr className="border-b text-left">
+                <th>Name</th>
+                <th>Code</th>
+                <th>Status</th>
+                <th className="text-right">Actions</th>
               </tr>
             </thead>
-
             <tbody>
-              {deletedCategories.map((cat) => (
-                <tr key={cat.id} className="border-b hover:bg-gray-50">
-                  <td className="py-3">{cat.name}</td>
-                  <td className="py-3">{cat.code}</td>
-                  <td className="py-3 text-right space-x-4">
-                    <button
-                      onClick={() => handleRestore(cat.id)}
-                      className="hover:text-blue-600"
-                    >
-                      <FontAwesomeIcon
-                        icon={faRotateLeft}
-                        className="text-blue-600 text-xl"
-                      />
-                    </button>
+              {categories.map((cat) => {
+                const editing = editingId === cat.id;
 
-                    <button
-                      onClick={() => {
-                        const sure = confirm("Permanent delete?");
-                        if (sure) handleDelete(cat.id);
-                      }}
-                      className="hover:text-red-700"
-                    >
-                      <FontAwesomeIcon
-                        icon={faTrashCan}
-                        className="text-red-600 text-xl"
-                      />
-                    </button>
-                  </td>
-                </tr>
-              ))}
+                return (
+                  <tr key={cat.id} className="border-b">
+                    <td>
+                      {editing ? (
+                        <input
+                          className="border px-2"
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                        />
+                      ) : (
+                        cat.name
+                      )}
+                    </td>
+                    <td>
+                      {editing ? (
+                        <input
+                          className="border px-2"
+                          value={editCode}
+                          onChange={(e) => setEditCode(e.target.value)}
+                        />
+                      ) : (
+                        cat.code
+                      )}
+                    </td>
+                    <td>
+                      <span className="bg-green-100 text-green-700 px-3 py-1 rounded-full text-xs">
+                        Active
+                      </span>
+                    </td>
+                    <td className="text-right space-x-3">
+                      {editing ? (
+                        <>
+                          <button onClick={handleSaveEdit}>Save</button>
+                          <button onClick={cancelEdit}>Cancel</button>
+                        </>
+                      ) : (
+                        <>
+                          <button onClick={() => startEdit(cat)}>
+                            <FontAwesomeIcon icon={faPenToSquare} className="text-yellow-400"
+                            />
+                          </button>
+                          <button onClick={() => handleDelete(cat.id)}>
+                            <FontAwesomeIcon
+                              icon={faTrashCan}
+                              className="text-red-600"
+                            />
+                          </button>
+                        </>
+                      )}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
-      )}
-    </div>
-  </Layout>
-);
+
+        {/* SOFT DELETE TABLE */}
+        {deletedCategories.length > 0 && (
+          <div className="bg-white p-6 rounded-xl border">
+            <h2 className="text-red-600 font-semibold mb-4">
+              Recycle Bin (Soft Deleted)
+            </h2>
+
+            <table className="w-full">
+              <thead>
+                <tr className="border-b text-left">
+                  <th>Name</th>
+                  <th>Code</th>
+                  <th>Status</th>
+                  <th>Deleted At</th>
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {deletedCategories.map((cat) => (
+                  <tr key={cat.id} className="border-b">
+                    <td>{cat.name}</td>
+                    <td>{cat.code}</td>
+                    <td>
+                      <span className="bg-red-100 text-red-700 px-3 py-1 rounded-full text-xs">
+                        Deleted
+                      </span>
+                    </td>
+                    <td className="text-red-600">
+                      {formatDate(cat.deleted_at)}
+                    </td>
+                    <td className="text-right space-x-3">
+                      <button onClick={() => handleRestore(cat.id)}>
+                        <FontAwesomeIcon
+                          icon={faRotateLeft}
+                          className="text-blue-600"
+                        />
+                      </button>
+                      <button onClick={() => handleDelete(cat.id)}>
+                        <FontAwesomeIcon
+                          icon={faTrashCan}
+                          className="text-red-600"
+                        />
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </Layout>
+  );
 }

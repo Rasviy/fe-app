@@ -8,10 +8,12 @@ const API_CATEGORIES = "http://localhost:3000/categories";
 
 export default function ItemManagement() {
   const [items, setItems] = useState([]);
+  const [softDeletedItems, setSoftDeletedItems] = useState([]);
   const [units, setUnits] = useState([]);
   const [categories, setCategories] = useState([]);
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
+  const [showRecycleBin, setShowRecycleBin] = useState(false);
 
   const initialForm = {
     id: null,
@@ -59,13 +61,21 @@ export default function ItemManagement() {
 
       let list = parseResponse(json);
 
-      // remove soft-deleted
-      list = list.filter((i) => !i.deleted_at);
+      // Pisahkan item yang aktif dan yang soft deleted
+      const activeItems = list.filter((i) => !i.deleted_at);
+      const deletedItems = list.filter((i) => i.deleted_at);
 
-      setItems(list);
+      setItems(activeItems);
+      setSoftDeletedItems(deletedItems);
+      
+      // Tampilkan recycle bin jika ada item yang dihapus
+      if (deletedItems.length > 0) {
+        setShowRecycleBin(true);
+      }
     } catch (e) {
       console.error("FETCH ITEMS ERROR:", e);
       setItems([]);
+      setSoftDeletedItems([]);
     }
   }
 
@@ -218,15 +228,82 @@ export default function ItemManagement() {
         return;
       }
 
+      // Pindahkan item ke soft deleted
       setItems((prev) => prev.filter((i) => i.id !== item.id));
+      setSoftDeletedItems((prev) => [...prev, { ...item, deleted_at: new Date().toISOString() }]);
+      setShowRecycleBin(true);
+      
+      alert("Item berhasil dihapus (soft delete)");
     } catch (err) {
       console.error(err);
     }
   }
 
+  /** RESTORE SOFT DELETED ITEM */
+  async function handleRestore(item) {
+    if (!confirm("Restore item ini?")) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/${item.id}/restore`, {
+        method: "PUT",
+      });
+
+      if (!res.ok) {
+        alert("Gagal restore item");
+        return;
+      }
+
+      // Pindahkan item kembali ke items aktif
+      const restoredItem = { ...item, deleted_at: null };
+      setSoftDeletedItems((prev) => prev.filter((i) => i.id !== item.id));
+      setItems((prev) => [...prev, restoredItem]);
+      
+      alert("Item berhasil direstore!");
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  /** PERMANENT DELETE */
+  async function handlePermanentDelete(item) {
+    if (!confirm("Hapus permanen item ini? Tindakan ini tidak dapat dibatalkan.")) return;
+
+    try {
+      const res = await fetch(`${API_BASE}/${item.id}/permanent`, {
+        method: "DELETE",
+      });
+
+      if (!res.ok) {
+        alert("Gagal menghapus permanen");
+        return;
+      }
+
+      // Hapus dari soft deleted items
+      setSoftDeletedItems((prev) => prev.filter((i) => i.id !== item.id));
+      
+      alert("Item berhasil dihapus permanen");
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  /** FORMAT HARGA */
   function fmtPrice(x) {
     if (!x) return "-";
     return "Rp" + Number(x).toLocaleString("id-ID");
+  }
+
+  /** FORMAT TANGGAL */
+  function fmtDate(dateString) {
+    if (!dateString) return "-";
+    const date = new Date(dateString);
+    return date.toLocaleDateString("id-ID", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
   }
 
   return (
@@ -372,12 +449,17 @@ export default function ItemManagement() {
             </form>
           </div>
 
-          {/* TABLE */}
-          <div className="bg-white p-6 rounded shadow">
-            <h3 className="font-medium mb-3">Existing Items</h3>
+          {/* TABLE EXISTING ITEMS */}
+          <div className="bg-white p-6 rounded shadow mb-6">
+            <div className="flex justify-between items-center mb-3">
+              <h3 className="font-medium">Existing Items</h3>
+              <div className="text-sm text-gray-500">
+                Total: {items.length} items
+              </div>
+            </div>
 
             {items.length === 0 ? (
-              <div className="text-gray-500">No items found.</div>
+              <div className="text-gray-500 py-4">No items found.</div>
             ) : (
               <table className="min-w-full divide-y">
                 <thead>
@@ -389,6 +471,7 @@ export default function ItemManagement() {
                     <th className="py-2">Stock</th>
                     <th className="py-2">Unit</th>
                     <th className="py-2">Price</th>
+                    <th className="py-2">Status</th>
                     <th className="py-2">Actions</th>
                   </tr>
                 </thead>
@@ -425,18 +508,23 @@ export default function ItemManagement() {
                       <td className="py-3">{item.stock ?? "-"}</td>
                       <td className="py-3">{item.unit?.name || "-"}</td>
                       <td className="py-3">{fmtPrice(item.price)}</td>
+                      <td className="py-3">
+                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
+                          Active
+                        </span>
+                      </td>
 
                       <td className="py-3 flex gap-2">
                         <button
                           onClick={() => startEdit(item)}
-                          className="px-3 py-1 border rounded text-sm"
+                          className="px-3 py-1 border rounded text-sm hover:bg-gray-50"
                         >
                           Edit
                         </button>
 
                         <button
                           onClick={() => handleDelete(item)}
-                          className="px-3 py-1 border rounded text-red-600 text-sm"
+                          className="px-3 py-1 border rounded text-red-600 text-sm hover:bg-red-50"
                         >
                           Delete
                         </button>
@@ -447,6 +535,121 @@ export default function ItemManagement() {
               </table>
             )}
           </div>
+
+          {/* TABLE RECYCLE BIN (Soft Deleted) */}
+          {showRecycleBin && (
+            <div className="bg-white p-6 rounded shadow">
+              <div className="flex justify-between items-center mb-3">
+                <h3 className="font-medium text-red-600">Recycle Bin (Soft Deleted)</h3>
+                <div className="text-sm text-gray-500">
+                  Total: {softDeletedItems.length} deleted items
+                </div>
+              </div>
+
+              {softDeletedItems.length === 0 ? (
+                <div className="text-gray-500 py-4">No deleted items found.</div>
+              ) : (
+                <table className="min-w-full divide-y">
+                  <thead>
+                    <tr className="text-left text-sm text-gray-600">
+                      <th className="py-2">Item</th>
+                      <th className="py-2">Code</th>
+                      <th className="py-2">Category</th>
+                      <th className="py-2">Supplier</th>
+                      <th className="py-2">Stock</th>
+                      <th className="py-2">Unit</th>
+                      <th className="py-2">Price</th>
+                      <th className="py-2">Status</th>
+                      <th className="py-2">Deleted At</th>
+                      <th className="py-2">Actions</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y">
+                    {softDeletedItems.map((item) => (
+                      <tr key={item.id} className="hover:bg-gray-50">
+                        <td className="py-3 flex gap-3">
+                          <div className="h-12 w-12 bg-gray-100 border rounded overflow-hidden">
+                            {item.image ? (
+                              <img
+                                src={item.image}
+                                className="object-cover h-full w-full opacity-70"
+                                alt=""
+                              />
+                            ) : (
+                              <div className="flex items-center justify-center h-full text-gray-400">
+                                No Img
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <div className="font-medium">{item.name}</div>
+                            <div className="text-xs text-gray-500">
+                              {item.description}
+                            </div>
+                          </div>
+                        </td>
+
+                        <td className="py-3">{item.code || "-"}</td>
+                        <td className="py-3">{item.category?.name || "-"}</td>
+                        <td className="py-3">{item.supplier || "-"}</td>
+                        <td className="py-3">{item.stock ?? "-"}</td>
+                        <td className="py-3">{item.unit?.name || "-"}</td>
+                        <td className="py-3">{fmtPrice(item.price)}</td>
+                        <td className="py-3">
+                          <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
+                            Deleted
+                          </span>
+                        </td>
+                        <td className="py-3 text-sm text-gray-500">
+                          {fmtDate(item.deleted_at)}
+                        </td>
+
+                        <td className="py-3 flex gap-2">
+                          <button
+                            onClick={() => handleRestore(item)}
+                            className="px-3 py-1 border rounded text-green-600 text-sm hover:bg-green-50"
+                          >
+                            Restore
+                          </button>
+
+                          <button
+                            onClick={() => handlePermanentDelete(item)}
+                            className="px-3 py-1 border rounded text-red-600 text-sm hover:bg-red-50"
+                          >
+                            Delete Permanently
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+
+              {/* TOMBOL UNTUK MENYEMBUNYIKAN RECYCLE BIN */}
+              <div className="mt-4 pt-4 border-t flex justify-end">
+                <button
+                  onClick={() => setShowRecycleBin(false)}
+                  className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800"
+                >
+                  Hide Recycle Bin
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* TOMBOL UNTUK MENAMPILKAN RECYCLE BIN JIKA TERSEMBUNYI */}
+          {!showRecycleBin && softDeletedItems.length > 0 && (
+            <div className="mt-4 flex justify-center">
+              <button
+                onClick={() => setShowRecycleBin(true)}
+                className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 border rounded-lg hover:bg-gray-50"
+              >
+                Show Recycle Bin ({softDeletedItems.length} deleted items)
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
@@ -456,6 +659,11 @@ export default function ItemManagement() {
           padding: .6rem .75rem;
           border: 1px solid #e5e7eb;
           border-radius: .5rem;
+        }
+        .input:focus {
+          outline: none;
+          border-color: #3b82f6;
+          box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
       `}</style>
     </div>
