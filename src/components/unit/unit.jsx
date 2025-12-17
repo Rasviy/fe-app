@@ -283,7 +283,7 @@ export default function UnitManagement() {
                   {deletedUnits.map((unit) => (
                     <tr key={unit.id} className="border-t">
                       <td className="px-6 py-4">{unit.name}</td>
-                      <td className="px-6 py-4 text-gray-500">
+                      <td className="px-6 py-4 text-red-500">
                         {formatDate(unit.deleted_at)}
                       </td>
                       <td className="px-6 py-4 text-right space-x-3">
