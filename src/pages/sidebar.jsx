@@ -27,7 +27,7 @@ export default function Sidebar() {
     { name: "Gudang", icon: faWarehouse, path: "/warehouse" },
     { name: "SKU", icon: faBook, path: "/sku" },
     { name: "SCAN-QR", icon: faQrcode, path: "/scan-qr" },
-    { name: "Transaction", icon: faRepeat, path: "/transaction" },
+    { name: "Transaction", icon: faRepeat, path: "/transaksi" },
   ];
 
   useEffect(() => {
