@@ -1,5 +1,6 @@
 // src/components/ItemManagement.jsx
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import Layout from "../../pages/layout";
 
 const API_BASE = "http://localhost:3000/items";
@@ -7,6 +8,7 @@ const API_UNITS = "http://localhost:3000/units";
 const API_CATEGORIES = "http://localhost:3000/categories";
 
 export default function ItemManagement() {
+  const navigate = useNavigate();
   const [items, setItems] = useState([]);
   const [softDeletedItems, setSoftDeletedItems] = useState([]);
   const [units, setUnits] = useState([]);
@@ -14,6 +16,7 @@ export default function ItemManagement() {
   const [submitting, setSubmitting] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [showRecycleBin, setShowRecycleBin] = useState(false);
+  const [codeError, setCodeError] = useState("");
 
   const initialForm = {
     id: null,
@@ -95,8 +98,73 @@ export default function ItemManagement() {
     } catch {}
   }
 
+  // Fungsi untuk mendapatkan category code berdasarkan category_id
+  function getCategoryCode(categoryId) {
+    const category = categories.find(c => c.id === categoryId);
+    return category ? category.code || "" : "";
+  }
+
+  // Fungsi untuk mendapatkan unit name berdasarkan unit_id
+  function getUnitName(unitId) {
+    const unit = units.find(u => u.id === unitId);
+    return unit ? unit.name || "" : "";
+  }
+
+  // Fungsi untuk membentuk full code: [itemCode]-[categoryCode]-[unitName]
+  function generateFullCode(itemCode, categoryId, unitId) {
+    const categoryCode = getCategoryCode(categoryId);
+    const unitName = getUnitName(unitId);
+    
+    let parts = [];
+    if (itemCode) parts.push(itemCode);
+    if (categoryCode) parts.push(categoryCode);
+    if (unitName) parts.push(unitName);
+    
+    return parts.join("-");
+  }
+
+  // Fungsi untuk mendapatkan full code untuk item
+  function getItemFullCode(item) {
+    return generateFullCode(
+      item.code,
+      item.category_id || item.category?.id,
+      item.unit_id || item.unit?.id
+    );
+  }
+
+  // Fungsi untuk validasi kode unik
+  function isCodeUnique(code, currentId = null) {
+    // Cek di items aktif
+    const existsInItems = items.some(item => 
+      item.code === code && item.id !== currentId
+    );
+    
+    // Cek di soft deleted items
+    const existsInDeleted = softDeletedItems.some(item => 
+      item.code === code && item.id !== currentId
+    );
+    
+    return !existsInItems && !existsInDeleted;
+  }
+
   function handleChange(e) {
-    setForm({ ...form, [e.target.name]: e.target.value });
+    const { name, value } = e.target;
+    
+    // Validasi untuk field code
+    if (name === "code") {
+      // Cek apakah kode sudah digunakan
+      if (value.trim() !== "") {
+        if (!isCodeUnique(value, form.id)) {
+          setCodeError("Kode ini sudah digunakan. Silakan gunakan kode lain.");
+        } else {
+          setCodeError("");
+        }
+      } else {
+        setCodeError("");
+      }
+    }
+    
+    setForm({ ...form, [name]: value });
   }
 
   function handleFileChange(e) {
@@ -112,6 +180,18 @@ export default function ItemManagement() {
   /** CREATE */
   async function handleCreate(e) {
     e.preventDefault();
+    
+    // Validasi kode unik
+    if (!isCodeUnique(form.code)) {
+      alert("Kode item sudah digunakan. Silakan gunakan kode lain.");
+      return;
+    }
+    
+    if (codeError) {
+      alert("Terdapat error pada kode item. Silakan perbaiki terlebih dahulu.");
+      return;
+    }
+    
     setSubmitting(true);
 
     const payload = {
@@ -140,6 +220,7 @@ export default function ItemManagement() {
       setItems((prev) => [...prev, created]);
 
       setForm(initialForm);
+      setCodeError("");
       alert("Item berhasil dibuat!");
     } catch (err) {
       console.error(err);
@@ -164,18 +245,33 @@ export default function ItemManagement() {
       category_id: item.category_id ?? item.category?.id ?? "",
     });
 
+    // Reset error saat edit
+    setCodeError("");
+    
     window.scrollTo(0, 0);
   }
 
   function cancelEdit() {
     setIsEditing(false);
     setForm(initialForm);
+    setCodeError("");
   }
 
   /** UPDATE */
   async function handleSaveEdit(e) {
     e.preventDefault();
     if (!form.id) return;
+    
+    // Validasi kode unik
+    if (!isCodeUnique(form.code, form.id)) {
+      alert("Kode item sudah digunakan. Silakan gunakan kode lain.");
+      return;
+    }
+    
+    if (codeError) {
+      alert("Terdapat error pada kode item. Silakan perbaiki terlebih dahulu.");
+      return;
+    }
 
     setSubmitting(true);
 
@@ -306,14 +402,41 @@ export default function ItemManagement() {
     });
   }
 
+  // Fungsi untuk navigasi ke halaman SKU dengan data item
+  const goToSKU = (item) => {
+    // Kirim data item ke halaman SKU melalui state atau query params
+    navigate("/sku", { 
+      state: { 
+        itemId: item.id,
+        itemName: item.name,
+        itemCode: getItemFullCode(item)
+      }
+    });
+  };
+
+  // Fungsi untuk generate kode unik otomatis (opsional)
+  const generateUniqueCode = () => {
+    let newCode = `ITEM${Math.floor(1000 + Math.random() * 9000)}`;
+    
+    // Pastikan kode unik
+    while (!isCodeUnique(newCode, form.id)) {
+      newCode = `ITEM${Math.floor(1000 + Math.random() * 9000)}`;
+    }
+    
+    setForm({ ...form, code: newCode });
+    setCodeError("");
+  };
+
   return (
     <div className="flex min-h-screen">
       <Layout />
 
       <div className="flex-1 bg-gray-50 p-6 overflow-auto">
         <div className="max-w-6xl mx-auto">
-
-          <h1 className="text-2xl font-semibold mb-4">Item Management</h1>
+          {/* HEADER */}
+          <div className="flex justify-between items-center mb-6">
+            <h1 className="text-2xl font-semibold">Item Management</h1>
+          </div>
 
           {/* FORM */}
           <div className="bg-white p-6 rounded shadow mb-6">
@@ -351,6 +474,7 @@ export default function ItemManagement() {
                   value={form.price}
                   onChange={handleChange}
                   placeholder="Price"
+                  min="0"
                 />
                 <input
                   type="number"
@@ -359,6 +483,7 @@ export default function ItemManagement() {
                   value={form.stock}
                   onChange={handleChange}
                   placeholder="Stock"
+                  min="0"
                 />
 
                 <select
@@ -384,19 +509,48 @@ export default function ItemManagement() {
                   <option value="">Pilih Kategori</option>
                   {categories.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}
+                      {c.code} - {c.name}
                     </option>
                   ))}
                 </select>
               </div>
 
-              <input
-                className="input"
-                name="code"
-                value={form.code}
-                onChange={handleChange}
-                placeholder="Code"
-              />
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <div className="flex gap-2 mb-1">
+                    <input
+                      className="input"
+                      name="code"
+                      value={form.code}
+                      onChange={handleChange}
+                      placeholder="Item Code (Harus Unik)"
+                      required
+                      style={{ borderColor: codeError ? '#ef4444' : '' }}
+                    />
+                    <button
+                      type="button"
+                      onClick={generateUniqueCode}
+                      className="px-3 py-2 bg-gray-100 text-gray-700 rounded hover:bg-gray-200 text-sm whitespace-nowrap"
+                    >
+                      Generate Code
+                    </button>
+                  </div>
+                  {codeError && (
+                    <div className="text-red-500 text-sm mt-1">{codeError}</div>
+                  )}
+                  <div className="text-xs text-gray-500 mt-1">
+                    Kode harus unik dan tidak boleh duplikat
+                  </div>
+                </div>
+                <div className="flex items-center justify-center p-3 bg-gray-50 rounded border">
+                  <span className="text-sm text-gray-600">
+                    Full Code:{" "}
+                    <span className="font-mono font-medium">
+                      {generateFullCode(form.code, form.category_id, form.unit_id)}
+                    </span>
+                  </span>
+                </div>
+              </div>
 
               <textarea
                 className="input h-24"
@@ -424,8 +578,8 @@ export default function ItemManagement() {
 
               <div className="flex gap-3">
                 <button
-                  className="px-4 py-2 bg-blue-600 text-white rounded"
-                  disabled={submitting}
+                  className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  disabled={submitting || codeError}
                 >
                   {submitting
                     ? isEditing
@@ -440,7 +594,7 @@ export default function ItemManagement() {
                   <button
                     type="button"
                     onClick={cancelEdit}
-                    className="px-4 py-2 border rounded"
+                    className="px-4 py-2 border rounded hover:bg-gray-50"
                   >
                     Cancel
                   </button>
@@ -465,13 +619,10 @@ export default function ItemManagement() {
                 <thead>
                   <tr className="text-left text-sm text-gray-600">
                     <th className="py-2">Item</th>
-                    <th className="py-2">Code</th>
-                    <th className="py-2">Category</th>
+                    <th className="py-2">Code (Full)</th>
                     <th className="py-2">Supplier</th>
                     <th className="py-2">Stock</th>
-                    <th className="py-2">Unit</th>
                     <th className="py-2">Price</th>
-                    <th className="py-2">Status</th>
                     <th className="py-2">Actions</th>
                   </tr>
                 </thead>
@@ -485,7 +636,7 @@ export default function ItemManagement() {
                             <img
                               src={item.image}
                               className="object-cover h-full w-full"
-                              alt=""
+                              alt={item.name}
                             />
                           ) : (
                             <div className="flex items-center justify-center h-full text-gray-400">
@@ -502,32 +653,47 @@ export default function ItemManagement() {
                         </div>
                       </td>
 
-                      <td className="py-3">{item.code || "-"}</td>
-                      <td className="py-3">{item.category?.name || "-"}</td>
-                      <td className="py-3">{item.supplier || "-"}</td>
-                      <td className="py-3">{item.stock ?? "-"}</td>
-                      <td className="py-3">{item.unit?.name || "-"}</td>
-                      <td className="py-3">{fmtPrice(item.price)}</td>
                       <td className="py-3">
-                        <span className="px-2 py-1 text-xs bg-green-100 text-green-800 rounded-full">
-                          Active
+                        <div className="font-mono font-medium text-blue-600">
+                          {getItemFullCode(item)}
+                        </div>
+                        <div className="text-xs text-gray-500 mt-1">
+                          <div>Item Code: {item.code}</div>
+                          <div>Category: {getCategoryCode(item.category_id || item.category?.id) || "-"}</div>
+                          <div>Unit: {getUnitName(item.unit_id || item.unit?.id) || "-"}</div>
+                        </div>
+                      </td>
+                      <td className="py-3">{item.supplier || "-"}</td>
+                      <td className="py-3">
+                        <span className={`px-2 py-1 rounded text-xs ${item.stock > 10 ? 'bg-green-100 text-green-800' : item.stock > 0 ? 'bg-yellow-100 text-yellow-800' : 'bg-red-100 text-red-800'}`}>
+                          {item.stock ?? "0"}
                         </span>
                       </td>
+                      <td className="py-3">{fmtPrice(item.price)}</td>
 
-                      <td className="py-3 flex gap-2">
-                        <button
-                          onClick={() => startEdit(item)}
-                          className="px-3 py-1 border rounded text-sm hover:bg-gray-50"
-                        >
-                          Edit
-                        </button>
-
-                        <button
-                          onClick={() => handleDelete(item)}
-                          className="px-3 py-1 border rounded text-red-600 text-sm hover:bg-red-50"
-                        >
-                          Delete
-                        </button>
+                      <td className="py-3">
+                        <div className="flex flex-col gap-2">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => startEdit(item)}
+                              className="px-3 py-1 border rounded text-sm hover:bg-gray-50 w-full"
+                            >
+                              Edit
+                            </button>
+                            <button
+                              onClick={() => handleDelete(item)}
+                              className="px-3 py-1 border rounded text-red-600 text-sm hover:bg-red-50 w-full"
+                            >
+                              Delete
+                            </button>
+                          </div>
+                          <button
+                            onClick={() => goToSKU(item)}
+                            className="px-3 py-1 bg-purple-600 text-white rounded text-sm hover:bg-purple-700 w-full"
+                          >
+                            View SKU
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -553,13 +719,10 @@ export default function ItemManagement() {
                   <thead>
                     <tr className="text-left text-sm text-gray-600">
                       <th className="py-2">Item</th>
-                      <th className="py-2">Code</th>
-                      <th className="py-2">Category</th>
+                      <th className="py-2">Code (Full)</th>
                       <th className="py-2">Supplier</th>
                       <th className="py-2">Stock</th>
-                      <th className="py-2">Unit</th>
                       <th className="py-2">Price</th>
-                      <th className="py-2">Status</th>
                       <th className="py-2">Deleted At</th>
                       <th className="py-2">Actions</th>
                     </tr>
@@ -574,7 +737,7 @@ export default function ItemManagement() {
                               <img
                                 src={item.image}
                                 className="object-cover h-full w-full opacity-70"
-                                alt=""
+                                alt={item.name}
                               />
                             ) : (
                               <div className="flex items-center justify-center h-full text-gray-400">
@@ -591,35 +754,39 @@ export default function ItemManagement() {
                           </div>
                         </td>
 
-                        <td className="py-3">{item.code || "-"}</td>
-                        <td className="py-3">{item.category?.name || "-"}</td>
-                        <td className="py-3">{item.supplier || "-"}</td>
-                        <td className="py-3">{item.stock ?? "-"}</td>
-                        <td className="py-3">{item.unit?.name || "-"}</td>
-                        <td className="py-3">{fmtPrice(item.price)}</td>
                         <td className="py-3">
-                          <span className="px-2 py-1 text-xs bg-red-100 text-red-800 rounded-full">
-                            Deleted
-                          </span>
+                          <div className="font-mono font-medium text-blue-600 opacity-70">
+                            {getItemFullCode(item)}
+                          </div>
+                          <div className="text-xs text-gray-500 mt-1 opacity-70">
+                            <div>Item Code: {item.code}</div>
+                            <div>Category: {getCategoryCode(item.category_id || item.category?.id) || "-"}</div>
+                            <div>Unit: {getUnitName(item.unit_id || item.unit?.id) || "-"}</div>
+                          </div>
                         </td>
+                        <td className="py-3">{item.supplier || "-"}</td>
+                        <td className="py-3">{item.stock ?? "0"}</td>
+                        <td className="py-3">{fmtPrice(item.price)}</td>
                         <td className="py-3 text-sm text-gray-500">
                           {fmtDate(item.deleted_at)}
                         </td>
 
-                        <td className="py-3 flex gap-2">
-                          <button
-                            onClick={() => handleRestore(item)}
-                            className="px-3 py-1 border rounded text-green-600 text-sm hover:bg-green-50"
-                          >
-                            Restore
-                          </button>
+                        <td className="py-3">
+                          <div className="flex flex-col gap-2">
+                            <button
+                              onClick={() => handleRestore(item)}
+                              className="px-3 py-1 border rounded text-green-600 text-sm hover:bg-green-50"
+                            >
+                              Restore
+                            </button>
 
-                          <button
-                            onClick={() => handlePermanentDelete(item)}
-                            className="px-3 py-1 border rounded text-red-600 text-sm hover:bg-red-50"
-                          >
-                            Delete Permanently
-                          </button>
+                            <button
+                              onClick={() => handlePermanentDelete(item)}
+                              className="px-3 py-1 border rounded text-red-600 text-sm hover:bg-red-50"
+                            >
+                              Delete Permanently
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
