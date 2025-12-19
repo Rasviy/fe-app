@@ -5,7 +5,8 @@ import Layout from "../../pages/layout";
 const API_LOANS = "http://localhost:3000/loans";
 const API_REQUEST = "http://localhost:3000/item-movement";
 
-// 🔹 formatter tanggal + waktu
+/* ================= UTIL ================= */
+
 const formatDateTime = (date) => {
   if (!date) return "Belum ada";
   return new Date(date).toLocaleString("id-ID", {
@@ -17,164 +18,82 @@ const formatDateTime = (date) => {
   });
 };
 
-// 🔹 Helper untuk mendapatkan nilai yang aman
 const getSafeValue = (value, fallback = "Data tidak tersedia") => {
   if (value === null || value === undefined || value === "") return fallback;
   return value;
 };
 
-// 🔹 Ekstrak data dari detail transaksi - DIPERBAIKI
+/* ================= EXTRACT ITEM ================= */
+
 const extractItemData = (item, type) => {
-  let name = "";
-  let sku_code = "";
-  let warehouse = "";
-  
-  if (type === "loan") {
-    // Untuk loans: ambil data dari loan_details
-    const detail = item.loan_details?.[0];
-    if (detail) {
-      // Coba ambil dari berbagai kemungkinan struktur
-      name = detail.sku?.item?.name || 
-             detail.sku?.name || 
-             detail.name || 
-             "";
-      
-      sku_code = detail.sku?.sku_code || 
-                 detail.sku_code || 
-                 detail.sku?.code || 
-                 "";
-      
-      warehouse = detail.sku?.warehouse?.name || 
-                  detail.warehouse?.name || 
-                  "";
-    }
-  } else {
-    // Untuk item-movement: ambil data dari details
-    const detail = item.details?.[0];
-    if (detail) {
-      name = detail.sku?.item?.name || 
-             detail.sku?.name || 
-             detail.name || 
-             "";
-      
-      sku_code = detail.sku?.sku_code || 
-                 detail.sku_code || 
-                 detail.sku?.code || 
-                 "";
-      
-      warehouse = detail.sku?.warehouse?.name || 
-                  detail.warehouse?.name || 
-                  "";
-    }
-  }
-  
-  return { name, sku_code, warehouse };
+  const detail =
+    type === "loan"
+      ? item.loan_details?.[0]
+      : item.details?.[0];
+
+  return {
+    name: detail?.sku?.item?.name || "",
+    sku_code: detail?.sku?.code || "",
+    warehouse: detail?.sku?.warehouse?.name || "",
+  };
 };
 
-// 🔹 Fungsi untuk mendapatkan tanggal pengembalian loans
 const getLoanReturnDate = (loan) => {
-  // Cari dari loan_details
   const detail = loan.loan_details?.[0];
-  if (detail?.return_date) {
-    return detail.return_date;
-  }
-  
-  // Jika tidak ada, hitung 7 hari setelah loan_date
+  if (detail?.return_date) return detail.return_date;
+
   if (loan.loan_date) {
-    const estimatedDate = new Date(
-      new Date(loan.loan_date).getTime() + (7 * 24 * 60 * 60 * 1000)
-    );
-    return estimatedDate.toISOString();
+    return new Date(
+      new Date(loan.loan_date).getTime() + 7 * 24 * 60 * 60 * 1000
+    ).toISOString();
   }
-  
   return null;
 };
 
-// 🔹 Fungsi untuk mendapatkan semua item dari detail transaksi (untuk table)
+/* ================= FLATTEN TABLE ================= */
+
 const getAllItemsFromDetails = (item, type) => {
-  const items = [];
-  
-  if (type === "loan") {
-    // Untuk loans
-    if (item.loan_details && Array.isArray(item.loan_details)) {
-      item.loan_details.forEach(detail => {
-        items.push({
-          name: detail.sku?.item?.name || 
-                detail.sku?.name || 
-                detail.name || 
-                "Item tidak tersedia",
-          sku_code: detail.sku?.sku_code || 
-                   detail.sku_code || 
-                   detail.sku?.code || 
-                   "SKU tidak tersedia",
-          warehouse: detail.sku?.warehouse?.name || 
-                    detail.warehouse?.name || 
-                    "Gudang tidak tersedia",
-          necessity: item.necessity || "Tidak disebutkan",
-          loan_date: item.loan_date,
-          request_date: null,
-          id: item.id,
-          return_date: detail.return_date,
-        });
-      });
-    } else {
-      // Fallback jika tidak ada details
-      items.push({
-        name: "Item tidak tersedia",
-        sku_code: "SKU tidak tersedia",
-        warehouse: "Gudang tidak tersedia",
-        necessity: item.necessity || "Tidak disebutkan",
+  const rows = [];
+
+  if (type === "loan" && Array.isArray(item.loan_details)) {
+    item.loan_details.forEach((detail) => {
+      rows.push({
+        id: item.id,
+        person_name: item.name, // 🔥 FIX
+        item_name: detail.sku?.item?.name,
+        sku_code: detail.sku?.code,
+        warehouse: detail.sku?.warehouse?.name,
+        necessity: item.necessity,
         loan_date: item.loan_date,
-        request_date: null,
-        id: item.id,
-        return_date: null,
       });
-    }
-  } else {
-    // Untuk item-movement
-    if (item.details && Array.isArray(item.details)) {
-      item.details.forEach(detail => {
-        items.push({
-          name: detail.sku?.item?.name || 
-                detail.sku?.name || 
-                detail.name || 
-                "Item tidak tersedia",
-          sku_code: detail.sku?.sku_code || 
-                   detail.sku_code || 
-                   detail.sku?.code || 
-                   "SKU tidak tersedia",
-          warehouse: detail.sku?.warehouse?.name || 
-                    detail.warehouse?.name || 
-                    "Gudang tidak tersedia",
-          necessity: item.necessity || "Tidak disebutkan",
-          loan_date: null,
-          request_date: item.request_date,
-          id: item.id,
-        });
-      });
-    } else {
-      // Fallback jika tidak ada details
-      items.push({
-        name: "Item tidak tersedia",
-        sku_code: "SKU tidak tersedia",
-        warehouse: "Gudang tidak tersedia",
-        necessity: item.necessity || "Tidak disebutkan",
-        loan_date: null,
-        request_date: item.request_date,
-        id: item.id,
-      });
-    }
+    });
   }
-  
-  return items;
+
+  if (type === "request" && Array.isArray(item.details)) {
+    item.details.forEach((detail) => {
+      rows.push({
+        id: item.id,
+        person_name: item.name,
+        item_name: detail.sku?.item?.name,
+        sku_code: detail.sku?.code,
+        warehouse: detail.sku?.warehouse?.name,
+        necessity: item.necessity,
+        request_date: item.request_date,
+      });
+    });
+  }
+
+  return rows;
 };
+
+/* ================= COMPONENT ================= */
 
 export default function TransactionReceipt() {
   const [type, setType] = useState("loan");
   const [transactions, setTransactions] = useState([]);
+  const [tableData, setTableData] = useState([]);
   const [selectedItem, setSelectedItem] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [tableData, setTableData] = useState([]);
 
   useEffect(() => {
     fetchData();
@@ -186,37 +105,19 @@ export default function TransactionReceipt() {
       const url = type === "loan" ? API_LOANS : API_REQUEST;
       const res = await axios.get(url);
 
-      // Handle response format
-      let data = [];
-      if (Array.isArray(res.data)) {
-        data = res.data;
-      } else if (res.data?.data && Array.isArray(res.data.data)) {
-        data = res.data.data;
-      } else if (res.data?.items && Array.isArray(res.data.items)) {
-        data = res.data.items;
-      }
+      const data = Array.isArray(res.data)
+        ? res.data
+        : res.data?.data || [];
 
-      // Simpan data transaksi asli
       setTransactions(data);
-      
-      // Buat data untuk table (flatten details)
-      const tableItems = [];
-      data.forEach(transaction => {
-        const items = getAllItemsFromDetails(transaction, type);
-        tableItems.push(...items);
-      });
-      
-      setTableData(tableItems);
-      
-      // Set selected item ke pertama di table data jika ada
-      if (tableItems.length > 0) {
-        setSelectedItem(tableItems[0]);
-      } else {
-        setSelectedItem(null);
-      }
+
+      const rows = [];
+      data.forEach((t) => rows.push(...getAllItemsFromDetails(t, type)));
+
+      setTableData(rows);
+      setSelectedItem(rows[0] || null);
     } catch (err) {
-      console.error("Error fetching data:", err);
-      setTransactions([]);
+      console.error(err);
       setTableData([]);
       setSelectedItem(null);
     } finally {
@@ -224,199 +125,98 @@ export default function TransactionReceipt() {
     }
   };
 
-  // Format selected item untuk detail view
   const getFormattedSelectedItem = () => {
     if (!selectedItem) return null;
-    
-    // Ambil transaksi asli berdasarkan ID
-    const originalTransaction = transactions.find(t => t.id === selectedItem.id);
-    if (!originalTransaction) return selectedItem;
-    
-    const itemData = extractItemData(originalTransaction, type);
-    
+
+    const trx = transactions.find((t) => t.id === selectedItem.id);
+    if (!trx) return selectedItem;
+
+    const itemData = extractItemData(trx, type);
+
     return {
-      ...originalTransaction,
+      ...trx,
+      person_name: trx.name, // 🔥 FIX
       item_name: itemData.name,
       sku_code: itemData.sku_code,
       warehouse_name: itemData.warehouse,
-      return_date: type === "loan" ? getLoanReturnDate(originalTransaction) : null,
+      return_date: type === "loan" ? getLoanReturnDate(trx) : null,
     };
   };
 
   const renderGeneralInfo = () => {
-    const formattedItem = getFormattedSelectedItem();
-    if (!formattedItem) return null;
+    const data = getFormattedSelectedItem();
+    if (!data) return null;
 
-    // ================== LOAN ==================
-    if (type === "loan") {
-      return (
-        <div className="grid grid-cols-2 gap-6 text-sm">
-          <Info label="Jenis Transaksi" value="Meminjam" />
-          <Info 
-            label="SKU Code" 
-            value={getSafeValue(formattedItem.sku_code)} 
-          />
-
-          <Info 
-            label="Nama Peminjam" 
-            value={getSafeValue(formattedItem.name)} 
-          />
-          <Info 
-            label="Nama Item" 
-            value={getSafeValue(formattedItem.item_name)} 
-          />
-
-          <Info
-            label="Tanggal Peminjaman"
-            value={formatDateTime(formattedItem.loan_date)}
-          />
-          <Info
-            label="Tanggal Pengembalian"
-            value={formattedItem.return_date ? formatDateTime(formattedItem.return_date) : "Belum ditentukan"}
-          />
-
-          <Info
-            label="Lokasi Asal"
-            value={getSafeValue(formattedItem.warehouse_name)}
-          />
-          <Info 
-            label="Kebutuhan" 
-            value={getSafeValue(formattedItem.necessity)} 
-          />
-        </div>
-      );
-    }
-
-    // ================== REQUEST ==================
     return (
       <div className="grid grid-cols-2 gap-6 text-sm">
-        <Info label="Jenis Transaksi" value="Meminta" />
-        <Info 
-          label="Nama Peminta" 
-          value={getSafeValue(formattedItem.name)} 
-        />
-        <Info 
-          label="SKU Code" 
-          value={getSafeValue(formattedItem.sku_code)} 
-        />
-        <Info
-          label="Tanggal Transaksi"
-          value={formatDateTime(formattedItem.request_date)}
-        />
-        <Info 
-          label="Kebutuhan" 
-          value={getSafeValue(formattedItem.necessity)} 
-        />
-        <Info 
-          label="Lokasi Asal" 
-          value={getSafeValue(formattedItem.warehouse_name)} 
-        />
-        <Info 
-          label="Nama Item" 
-          value={getSafeValue(formattedItem.item_name)} 
-        />
+        <Info label="Jenis Transaksi" value={type === "loan" ? "Meminjam" : "Meminta"} />
+        <Info label={type === "loan" ? "Nama Peminjam" : "Nama Peminta"} value={data.person_name} />
+        <Info label="Nama Item" value={data.item_name} />
+        <Info label="SKU Code" value={data.sku_code} />
+        <Info label="Tanggal Transaksi" value={formatDateTime(data.loan_date || data.request_date)} />
+        {type === "loan" && (
+          <Info label="Tanggal Pengembalian" value={formatDateTime(data.return_date)} />
+        )}
+        <Info label="Lokasi Asal" value={data.warehouse_name} />
+        <Info label="Kebutuhan" value={data.necessity} />
       </div>
     );
-  };
-
-  // Handler untuk klik row di table
-  const handleRowClick = (item) => {
-    setSelectedItem(item);
   };
 
   return (
     <Layout>
       <div className="max-w-6xl mx-auto space-y-6 p-4">
-        {/* Header */}
-        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div className="flex justify-between items-center">
           <h1 className="text-xl font-semibold">Detail Transaksi</h1>
-
           <select
-            className="border rounded-lg px-3 py-2 text-sm w-full sm:w-auto"
             value={type}
             onChange={(e) => setType(e.target.value)}
+            className="border rounded px-3 py-2"
           >
             <option value="loan">Meminjam Item</option>
             <option value="request">Meminta Item</option>
           </select>
         </div>
 
-        {/* Informasi Umum */}
-        <div className="bg-white rounded-lg shadow p-6">
-          <h2 className="font-semibold mb-4 text-lg">
-            Informasi Umum Transaksi
-          </h2>
-          {selectedItem ? renderGeneralInfo() : (
-            <p className="text-gray-500 text-sm">Tidak ada transaksi yang dipilih</p>
-          )}
+        <div className="bg-white p-6 rounded shadow">
+          <h2 className="font-semibold mb-4">Informasi Umum Transaksi</h2>
+          {renderGeneralInfo()}
         </div>
 
-        {/* Daftar Transaksi */}
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <div className="border-b px-6 py-4 font-semibold text-lg">
-            Daftar Item Transaksi
-          </div>
+        <div className="bg-white rounded shadow overflow-hidden">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-100 text-gray-600 text-xs uppercase tracking-wide">
+                <tr>
+                  <th className="px-3 py-2 w-12 text-center font-semibold">No</th>
+                  <th className="px-4 py-2 text-left font-semibold">Nama</th>
+                  <th className="px-4 py-2 text-left font-semibold">SKU</th>
+                  <th className="px-4 py-2 text-left font-semibold">Item</th>
+                  <th className="px-4 py-2 text-left font-semibold">Gudang</th>
+                  <th className="px-4 py-2 text-left font-semibold">Tanggal</th>
+                </tr>
+              </thead>
+            <tbody>
+              {tableData.map((row, i) => (
+                <tr
+                  key={i}
+                  onClick={() => setSelectedItem(row)}
+                  className="cursor-pointer hover:bg-blue-50 border-b"
+                >
+                  <td className="px-4 py-2">{i + 1}</td>
+                  <td className="px-4 py-2">{row.person_name}</td>
+                  <td className="px-4 py-2">{row.sku_code}</td>
+                  <td className="px-4 py-2">{row.item_name}</td>
+                  <td className="px-4 py-2">{row.warehouse}</td>
+                  <td className="px-4 py-2">
+                    {formatDateTime(row.loan_date || row.request_date)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
 
-          {loading ? (
-            <div className="p-6">
-              <p className="text-sm text-center">Memuat data...</p>
-            </div>
-          ) : tableData.length === 0 ? (
-            <div className="p-6">
-              <p className="text-sm text-gray-500 text-center">
-                Tidak ada data transaksi
-              </p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-100">
-                  <tr>
-                    <th className="px-6 py-3 text-left">No</th>
-                    <th className="px-6 py-3 text-left">Nama {type === "loan" ? "Peminjam" : "Peminta"}</th>
-                    <th className="px-6 py-3 text-left">SKU Code</th>
-                    <th className="px-6 py-3 text-left">Nama Item</th>
-                    <th className="px-6 py-3 text-left">Gudang</th>
-                    <th className="px-6 py-3 text-left">Kebutuhan</th>
-                    <th className="px-6 py-3 text-left">Tanggal</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tableData.map((item, i) => (
-                    <tr
-                      key={`${item.id}-${i}`}
-                      onClick={() => handleRowClick(item)}
-                      className={`cursor-pointer border-b hover:bg-blue-50 transition-colors ${
-                        selectedItem?.id === item.id ? "bg-blue-50" : ""
-                      }`}
-                    >
-                      <td className="px-6 py-3">{i + 1}</td>
-                      <td className="px-6 py-3 font-medium">
-                        {getSafeValue(item.name)}
-                      </td>
-                      <td className="px-6 py-3">
-                        {getSafeValue(item.sku_code)}
-                      </td>
-                      <td className="px-6 py-3">
-                        {getSafeValue(item.name)}
-                      </td>
-                      <td className="px-6 py-3">
-                        {getSafeValue(item.warehouse)}
-                      </td>
-                      <td className="px-6 py-3">
-                        {getSafeValue(item.necessity)}
-                      </td>
-                      <td className="px-6 py-3">
-                        {type === 'loan' 
-                          ? formatDateTime(item.loan_date)
-                          : formatDateTime(item.request_date)
-                        }
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+          {loading && (
+            <p className="p-4 text-center text-sm">Memuat data...</p>
           )}
         </div>
       </div>
@@ -424,13 +224,11 @@ export default function TransactionReceipt() {
   );
 }
 
-function Info({ label, value, className = "" }) {
+function Info({ label, value }) {
   return (
     <div>
-      <p className="text-gray-500 text-xs mb-1">{label}</p>
-      <p className={`font-medium ${className}`}>
-        {value || "Data tidak tersedia"}
-      </p>
+      <p className="text-xs text-gray-500">{label}</p>
+      <p className="font-medium">{getSafeValue(value)}</p>
     </div>
   );
 }

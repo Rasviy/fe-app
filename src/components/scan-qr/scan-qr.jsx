@@ -1,11 +1,14 @@
 import { useState } from "react";
 import axios from "axios";
 import { Scanner } from "@yudiel/react-qr-scanner";
+import { useNavigate } from "react-router-dom";
 import Layout from "../../pages/layout";
 
 const API = "http://localhost:3000";
 
 export default function ScannerPage() {
+  const navigate = useNavigate();
+
   const [cameraOn, setCameraOn] = useState(true);
   const [inputSKU, setInputSKU] = useState("");
   const [showCard, setShowCard] = useState(false);
@@ -14,9 +17,6 @@ export default function ScannerPage() {
   const [skuData, setSkuData] = useState(null);
   const [itemData, setItemData] = useState(null);
 
-  // =========================
-  // FORM PINJAM
-  // =========================
   const [loanForm, setLoanForm] = useState({
     name: "",
     phone_number: "",
@@ -28,9 +28,6 @@ export default function ScannerPage() {
     qty: 1,
   });
 
-  // =========================
-  // FORM MINTA
-  // =========================
   const [requestForm, setRequestForm] = useState({
     name: "",
     phone_number: "",
@@ -39,14 +36,13 @@ export default function ScannerPage() {
     request_date: "",
   });
 
-  // =========================
-  // FETCH SKU → ITEM
-  // =========================
+  /* ================= FETCH SKU ================= */
   const fetchItemBySKU = async (rawCode) => {
     try {
       const skuCode = rawCode.trim().toUpperCase();
-      const skuRes = await axios.get(`${API}/sku`);
+      if (!skuCode) return;
 
+      const skuRes = await axios.get(`${API}/sku`);
       const sku = skuRes.data.find((s) => s.code === skuCode);
       if (!sku) return alert("SKU tidak ditemukan");
 
@@ -54,58 +50,47 @@ export default function ScannerPage() {
 
       const itemRes = await axios.get(`${API}/items/${sku.item_id}`);
       setItemData(itemRes.data);
+
       setShowCard(true);
     } catch (err) {
-      console.error(err);
       alert("Gagal mengambil data item");
     }
   };
 
-  // =========================
-  // SUBMIT PINJAM
-  // =========================
+  /* ================= SUBMIT ================= */
   const submitLoan = async () => {
-    const payload = {
-      name: loanForm.name,
-      phone_number: loanForm.phone_number,
-      email: loanForm.email,
-      necessity: loanForm.necessity,
-      note: loanForm.note,
-      loan_date: loanForm.loan_date,
-      details: [
-        {
-          sku_id: skuData.id,
-          qty: Number(loanForm.qty),
-          return_date: loanForm.return_date,
-        },
-      ],
-    };
+    try {
+      await axios.post(`${API}/loans`, {
+        ...loanForm,
+        details: [
+          {
+            sku_id: skuData.id,
+            qty: Number(loanForm.qty),
+            return_date: loanForm.return_date,
+          },
+        ],
+      });
 
-    await axios.post(`${API}/loans`, payload);
-    alert("Peminjaman berhasil");
+      alert("Peminjaman berhasil");
+      navigate("/transaksi");
+    } catch {
+      alert("Gagal melakukan peminjaman");
+    }
   };
 
-  // =========================
-  // SUBMIT MINTA
-  // =========================
   const submitRequest = async () => {
-    const payload = {
-      name: requestForm.name,
-      phone_number: requestForm.phone_number,
-      email: requestForm.email,
-      necessity: requestForm.necessity,
-      request_date: requestForm.request_date,
-      created_by: "admin",
-      details: [
-        {
-          sku_id: skuData.id,
-          sku_code: skuData.code,
-        },
-      ],
-    };
+    try {
+      await axios.post(`${API}/item-movement`, {
+        ...requestForm,
+        created_by: "admin",
+        details: [{ sku_id: skuData.id }],
+      });
 
-    await axios.post(`${API}/item-movement`, payload);
-    alert("Permintaan berhasil");
+      alert("Permintaan berhasil");
+      navigate("/transaksi");
+    } catch {
+      alert("Gagal melakukan permintaan");
+    }
   };
 
   return (
@@ -113,7 +98,7 @@ export default function ScannerPage() {
       <div className="min-h-screen bg-gray-100 p-8">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-2 gap-6">
 
-          {/* LEFT */}
+          {/* ================= LEFT ================= */}
           <div className="space-y-4">
             <h1 className="text-3xl font-bold">Scanner Inventaris</h1>
 
@@ -132,7 +117,6 @@ export default function ScannerPage() {
                   constraints={{ facingMode: "environment" }}
                   onScan={(res) => {
                     if (res?.[0]?.rawValue) {
-                      setInputSKU(res[0].rawValue);
                       fetchItemBySKU(res[0].rawValue);
                       setCameraOn(false);
                     }
@@ -141,13 +125,17 @@ export default function ScannerPage() {
               )}
             </div>
 
+            {/* ===== INPUT MANUAL (FIX BUG) ===== */}
             {!cameraOn && (
               <div className="bg-white p-4 rounded-2xl shadow space-y-3">
                 <input
                   className="w-full border p-3 rounded-xl"
-                  placeholder="Masukkan SKU..."
+                  placeholder="Masukkan SKU manual..."
                   value={inputSKU}
                   onChange={(e) => setInputSKU(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") fetchItemBySKU(inputSKU);
+                  }}
                 />
                 <button
                   onClick={() => fetchItemBySKU(inputSKU)}
@@ -159,35 +147,41 @@ export default function ScannerPage() {
             )}
           </div>
 
-          {/* RIGHT */}
+          {/* ================= RIGHT ================= */}
           {showCard && itemData && (
             <div className="bg-white p-6 rounded-2xl shadow space-y-6">
 
-              {/* ITEM CARD */}
-              <div className="flex gap-4">
-                {itemData.image && (
+              {/* ITEM INFO */}
+              <div className="flex gap-4 items-start">
+                {itemData.image ? (
                   <img
                     src={itemData.image}
+                    alt={itemData.name}
                     className="w-28 h-28 object-cover rounded-xl border"
                   />
+                ) : (
+                  <div className="w-28 h-28 flex items-center justify-center rounded-xl border text-gray-400 text-xs">
+                    Tidak ada foto
+                  </div>
                 )}
+
                 <div>
                   <h2 className="text-xl font-bold">{itemData.name}</h2>
-                  <p className="text-gray-500">{itemData.code}</p>
+                  <p className="text-sm text-gray-500">Kode Item: {itemData.code}</p>
                   <p className="text-sm">SKU: {skuData.code}</p>
                 </div>
               </div>
 
-              {/* MODE TABS */}
+              <hr />
+
+              {/* MODE */}
               <div className="flex bg-gray-100 rounded-xl overflow-hidden">
                 {["pinjam", "minta"].map((m) => (
                   <button
                     key={m}
                     onClick={() => setMode(m)}
                     className={`flex-1 py-3 font-medium ${
-                      mode === m
-                        ? "bg-green-600 text-white"
-                        : "text-gray-600"
+                      mode === m ? "bg-green-600 text-white" : "text-gray-600"
                     }`}
                   >
                     {m === "pinjam" ? "Meminjam" : "Meminta"}
@@ -195,40 +189,132 @@ export default function ScannerPage() {
                 ))}
               </div>
 
-              {/* FORM PINJAM */}
+              {/* ================= FORM PINJAM ================= */}
               {mode === "pinjam" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <input className="input" placeholder="Nama" onChange={(e)=>setLoanForm({...loanForm,name:e.target.value})}/>
-                  <input className="input" placeholder="No HP" onChange={(e)=>setLoanForm({...loanForm,phone_number:e.target.value})}/>
-                  <input className="input col-span-2" placeholder="Email" onChange={(e)=>setLoanForm({...loanForm,email:e.target.value})}/>
-                  <input className="input col-span-2" placeholder="Keperluan" onChange={(e)=>setLoanForm({...loanForm,necessity:e.target.value})}/>
-                  <input type="number" min="1" className="input" placeholder="Jumlah Barang" onChange={(e)=>setLoanForm({...loanForm,qty:e.target.value})}/>
-                  <input type="date" className="input" onChange={(e)=>setLoanForm({...loanForm,loan_date:e.target.value})}/>
-                  <input type="date" className="input col-span-2" onChange={(e)=>setLoanForm({...loanForm,return_date:e.target.value})}/>
-                  <textarea className="input col-span-2" placeholder="Catatan" onChange={(e)=>setLoanForm({...loanForm,note:e.target.value})}/>
-                  <button onClick={submitLoan} className="col-span-2 bg-green-600 text-white py-3 rounded-xl">
-                    Konfirmasi Pinjam
-                  </button>
-                </div>
+                <>
+                  <h3 className="font-semibold">Data Peminjam</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Nama Peminjam">
+                      <input className="input"
+                        value={loanForm.name}
+                        onChange={(e)=>setLoanForm({...loanForm,name:e.target.value})}/>
+                    </Field>
+
+                    <Field label="No HP">
+                      <input className="input"
+                        value={loanForm.phone_number}
+                        onChange={(e)=>setLoanForm({...loanForm,phone_number:e.target.value})}/>
+                    </Field>
+
+                    <Field label="Email" full>
+                      <input className="input"
+                        value={loanForm.email}
+                        onChange={(e)=>setLoanForm({...loanForm,email:e.target.value})}/>
+                    </Field>
+
+                    <Field label="Keperluan" full>
+                      <input className="input"
+                        value={loanForm.necessity}
+                        onChange={(e)=>setLoanForm({...loanForm,necessity:e.target.value})}/>
+                    </Field>
+                  </div>
+
+                  <hr />
+
+                  <h3 className="font-semibold">Detail Peminjaman</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Jumlah">
+                      <input type="number" min="1" className="input"
+                        value={loanForm.qty}
+                        onChange={(e)=>setLoanForm({...loanForm,qty:e.target.value})}/>
+                    </Field>
+
+                    <Field label="Tanggal Pinjam">
+                      <input type="date" className="input"
+                        value={loanForm.loan_date}
+                        onChange={(e)=>setLoanForm({...loanForm,loan_date:e.target.value})}/>
+                    </Field>
+
+                    <Field label="Tanggal Pengembalian" full>
+                      <input type="date" className="input"
+                        value={loanForm.return_date}
+                        onChange={(e)=>setLoanForm({...loanForm,return_date:e.target.value})}/>
+                    </Field>
+
+                    <Field label="Catatan" full>
+                      <textarea className="input"
+                        value={loanForm.note}
+                        onChange={(e)=>setLoanForm({...loanForm,note:e.target.value})}/>
+                    </Field>
+
+                    <button
+                      onClick={submitLoan}
+                      className="col-span-2 bg-green-600 text-white py-3 rounded-xl"
+                    >
+                      Konfirmasi Peminjaman
+                    </button>
+                  </div>
+                </>
               )}
 
-              {/* FORM MINTA */}
+              {/* ================= FORM MINTA ================= */}
               {mode === "minta" && (
-                <div className="grid grid-cols-2 gap-4">
-                  <input className="input" placeholder="Nama" onChange={(e)=>setRequestForm({...requestForm,name:e.target.value})}/>
-                  <input className="input" placeholder="No HP" onChange={(e)=>setRequestForm({...requestForm,phone_number:e.target.value})}/>
-                  <input className="input col-span-2" placeholder="Email" onChange={(e)=>setRequestForm({...requestForm,email:e.target.value})}/>
-                  <input className="input col-span-2" placeholder="Keperluan" onChange={(e)=>setRequestForm({...requestForm,necessity:e.target.value})}/>
-                  <input type="date" className="input col-span-2" onChange={(e)=>setRequestForm({...requestForm,request_date:e.target.value})}/>
-                  <button onClick={submitRequest} className="col-span-2 bg-green-600 text-white py-3 rounded-xl">
-                    Konfirmasi Permintaan
-                  </button>
-                </div>
+                <>
+                  <h3 className="font-semibold">Data Peminta</h3>
+                  <div className="grid grid-cols-2 gap-4">
+                    <Field label="Nama Peminta">
+                      <input className="input"
+                        value={requestForm.name}
+                        onChange={(e)=>setRequestForm({...requestForm,name:e.target.value})}/>
+                    </Field>
+
+                    <Field label="No HP">
+                      <input className="input"
+                        value={requestForm.phone_number}
+                        onChange={(e)=>setRequestForm({...requestForm,phone_number:e.target.value})}/>
+                    </Field>
+
+                    <Field label="Email" full>
+                      <input className="input"
+                        value={requestForm.email}
+                        onChange={(e)=>setRequestForm({...requestForm,email:e.target.value})}/>
+                    </Field>
+
+                    <Field label="Keperluan" full>
+                      <input className="input"
+                        value={requestForm.necessity}
+                        onChange={(e)=>setRequestForm({...requestForm,necessity:e.target.value})}/>
+                    </Field>
+
+                    <Field label="Tanggal Permintaan" full>
+                      <input type="date" className="input"
+                        value={requestForm.request_date}
+                        onChange={(e)=>setRequestForm({...requestForm,request_date:e.target.value})}/>
+                    </Field>
+
+                    <button
+                      onClick={submitRequest}
+                      className="col-span-2 bg-green-600 text-white py-3 rounded-xl"
+                    >
+                      Konfirmasi Permintaan
+                    </button>
+                  </div>
+                </>
               )}
             </div>
           )}
         </div>
       </div>
     </Layout>
+  );
+}
+
+/* ================= FIELD ================= */
+function Field({ label, children, full }) {
+  return (
+    <div className={full ? "col-span-2" : ""}>
+      <label className="text-xs text-gray-500 mb-1 block">{label}</label>
+      {children}
+    </div>
   );
 }
