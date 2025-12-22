@@ -132,6 +132,11 @@ export default function ItemManagement() {
     );
   }
 
+  // Fungsi untuk mendapatkan item code base (tanpa category dan unit)
+  function getItemBaseCode(item) {
+    return item.code || "";
+  }
+
   // Fungsi untuk validasi kode unik
   function isCodeUnique(code, currentId = null) {
     // Cek di items aktif
@@ -404,12 +409,13 @@ export default function ItemManagement() {
 
   // Fungsi untuk navigasi ke halaman SKU dengan data item
   const goToSKU = (item) => {
-    // Kirim data item ke halaman SKU melalui state atau query params
+    // Kirim data item ke halaman SKU melalui state
     navigate("/sku", { 
       state: { 
         itemId: item.id,
         itemName: item.name,
-        itemCode: getItemFullCode(item)
+        itemCode: getItemBaseCode(item), // Gunakan base code saja
+        itemFullCode: getItemFullCode(item)
       }
     });
   };

@@ -18,6 +18,8 @@
     "@yudiel/react-qr-scanner": "^2.5.0",
     "axios": "^1.13.2",
     "html5-qrcode": "^2.3.8",
+    "jspdf": "^3.0.4",
+    "qrcode": "^1.5.4",
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "react-router-dom": "^7.9.6"

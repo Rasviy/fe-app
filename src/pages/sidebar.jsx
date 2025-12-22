@@ -25,7 +25,6 @@ export default function Sidebar() {
     { name: "Category", icon: faLayerGroup, path: "/category" },
     { name: "Item", icon: faBoxes, path: "/item" },
     { name: "Gudang", icon: faWarehouse, path: "/warehouse" },
-    { name: "SKU", icon: faBook, path: "/sku" },
     { name: "SCAN-QR", icon: faQrcode, path: "/scan-qr" },
     { name: "Transaction", icon: faRepeat, path: "/transaksi" },
   ];
