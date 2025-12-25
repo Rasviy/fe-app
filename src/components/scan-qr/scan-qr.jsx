@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import Layout from "../../pages/layout";
 
 const API = "http://localhost:3000";
+const STORAGE_KEY = "scanner-page-state";
 
 export default function ScannerPage() {
   const navigate = useNavigate();
@@ -15,10 +16,13 @@ export default function ScannerPage() {
   const [mode, setMode] = useState("pinjam");
   const [loading, setLoading] = useState(false);
   const [loadingLoan, setLoadingLoan] = useState(false);
+  const [cameraError, setCameraError] = useState("");
 
   const [skuData, setSkuData] = useState(null);
   const [itemData, setItemData] = useState(null);
   const [activeLoan, setActiveLoan] = useState(null);
+  const [loanItems, setLoanItems] = useState([]);
+
 
   const [loanForm, setLoanForm] = useState({
     name: "",
@@ -41,8 +45,23 @@ export default function ScannerPage() {
     email: "",
   });
 
+  useEffect(() => {
+  const saved = sessionStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    const data = JSON.parse(saved);
+    setSkuData(data.skuData || null);
+    setItemData(data.itemData || null);
+    setActiveLoan(data.activeLoan || null);
+    setMode(data.mode || "pinjam");
+    setLoanForm(data.loanForm || loanForm);
+    setReturnForm(data.returnForm || returnForm);
+  }
+}, []);
+
   // Fungsi untuk reset semua state
   const resetAll = () => {
+  sessionStorage.removeItem(STORAGE_KEY);
+
     setInputSKU("");
     setShowCard(false);
     setSkuData(null);
@@ -68,6 +87,36 @@ export default function ScannerPage() {
       email: "",
     });
   };
+
+  // 🔒 LOAD STATE (BIAR GA RESET)
+useEffect(() => {
+  const saved = sessionStorage.getItem(STORAGE_KEY);
+  if (saved) {
+    const data = JSON.parse(saved);
+    setSkuData(data.skuData || null);
+    setItemData(data.itemData || null);
+    setActiveLoan(data.activeLoan || null);
+    setMode(data.mode || "pinjam");
+    setLoanForm(data.loanForm || loanForm);
+    setReturnForm(data.returnForm || returnForm);
+  }
+}, []);
+
+// 💾 SIMPAN STATE SETIAP ADA PERUBAHAN
+useEffect(() => {
+  sessionStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      skuData,
+      itemData,
+      activeLoan,
+      mode,
+      loanForm,
+      returnForm,
+    })
+  );
+}, [skuData, itemData, activeLoan, mode, loanForm, returnForm]);
+
 
   /* ================= VALIDASI FORM ================= */
   const validatePhoneNumber = (phone) => {
@@ -351,14 +400,12 @@ export default function ScannerPage() {
         note: loanForm.note || "",
         loan_date: loanForm.loan_date,
         status: "borrowing",
-        details: [
-          {
-            sku_id: skuData.id,
-            qty: Number(loanForm.qty),
-            return_date: loanForm.return_date,
-            status: "borrowed"
-          },
-        ],
+        details: loanItems.map((i) => ({
+          sku_id: i.sku.id,
+          qty: Number(i.qty),
+          return_date: loanForm.return_date,
+          status: "borrowed",
+        })),
       });
 
       alert("Peminjaman berhasil!");
@@ -487,7 +534,7 @@ export default function ScannerPage() {
             <div className="flex justify-between items-center">
               <h1 className="text-2xl md:text-3xl font-bold">Scanner Inventaris</h1>
               <button
-                onClick={() => navigate("/items")}
+                onClick={() => navigate("/item")}
                 className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 Kembali ke Items
@@ -529,6 +576,12 @@ export default function ScannerPage() {
                 </label>
               </div>
 
+              {cameraError && (
+  <div className="mb-3 bg-red-100 text-red-700 p-3 rounded-lg text-sm">
+    {cameraError}
+  </div>
+)}
+
               {cameraOn ? (
                 <div className="rounded-xl overflow-hidden border-2 border-gray-200">
                   <Scanner
@@ -540,12 +593,25 @@ export default function ScannerPage() {
                     onScan={handleQRScan}
                     onError={(error) => {
                       console.error("Scanner error:", error);
+
                       if (error?.name === "NotAllowedError") {
-                        alert("Izin kamera ditolak. Silakan aktifkan akses kamera di browser settings.");
-                      } else if (error?.name === "NotFoundError") {
-                        alert("Kamera tidak ditemukan. Pastikan perangkat memiliki kamera.");
+                        setCameraError(
+                          "Izin kamera ditolak. Aktifkan akses kamera di browser settings."
+                        );
+                        setCameraOn(false);
+                      } 
+                      else if (error?.name === "NotFoundError") {
+                        setCameraError(
+                          "Kamera tidak ditemukan. Pastikan perangkat memiliki kamera."
+                        );
+                        setCameraOn(false);
+                      } 
+                      else {
+                        setCameraError("Terjadi kesalahan pada kamera.");
+                        setCameraOn(false);
                       }
                     }}
+
                     styles={{
                       container: {
                         width: '100%',
@@ -717,6 +783,29 @@ export default function ScannerPage() {
                   </button>
                 ))}
               </div>
+
+              {loanItems.length > 0 && (
+  <div className="bg-gray-100 p-3 rounded-lg mb-4">
+    <h4 className="font-medium mb-2">Barang Dipinjam</h4>
+    {loanItems.map((i, idx) => (
+      <div key={idx} className="flex justify-between text-sm mb-2">
+        <span>{i.item.name} ({i.sku.code})</span>
+        <input
+          type="number"
+          min="1"
+          value={i.qty}
+          onChange={(e) => {
+            const copy = [...loanItems];
+            copy[idx].qty = e.target.value;
+            setLoanItems(copy);
+          }}
+          className="input w-20"
+        />
+      </div>
+    ))}
+  </div>
+)}
+
 
               {/* ================= FORM PINJAM ================= */}
               {mode === "pinjam" && (

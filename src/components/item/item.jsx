@@ -443,6 +443,14 @@ export default function ItemManagement() {
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-2xl font-semibold">Item Management</h1>
           </div>
+          <button
+              onClick={() => navigate("/scan-qr")}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm"
+            >
+              📷 Scan QR Barang
+            </button>
+            <br/>
+
 
           {/* FORM */}
           <div className="bg-white p-6 rounded shadow mb-6">

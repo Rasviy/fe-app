@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import Layout from "../../pages/layout";
 import { useLocation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
+
 
 /* ============================
    API HELPER
@@ -24,6 +26,8 @@ const fetchWarehouses = () => apiFetch("/warehouse");
 const fetchSkus = () => apiFetch("/sku");
 const fetchDeletedSkus = () => apiFetch("/sku/deleted");
 const fetchLoans = () => apiFetch("/loans");
+const navigate = useNavigate();
+
 
 const createSku = (body) =>
   apiFetch("/sku", { method: "POST", body: JSON.stringify(body) });
@@ -637,6 +641,13 @@ export default function SkuPage() {
   ============================ */
   return (
     <Layout>
+      <button
+              onClick={() => navigate("/scan-qr")}
+              className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm"
+            >
+              📷 Scan QR Barang
+            </button>
+            <br/>
       <div className="max-w-6xl mx-auto p-6">
         <h1 className="text-2xl font-semibold mb-6">SKU Management</h1>
         
