@@ -26,7 +26,7 @@ const fetchWarehouses = () => apiFetch("/warehouse");
 const fetchSkus = () => apiFetch("/sku");
 const fetchDeletedSkus = () => apiFetch("/sku/deleted");
 const fetchLoans = () => apiFetch("/loans");
-const navigate = useNavigate();
+
 
 
 const createSku = (body) =>
@@ -217,6 +217,7 @@ async function generateQRCodeHTML(sku, item, warehouse) {
    MAIN PAGE
 ============================ */
 export default function SkuPage() {
+  const navigate = useNavigate();
   const location = useLocation();
   const [selectedItemId, setSelectedItemId] = useState(null);
   const [selectedItemName, setSelectedItemName] = useState("");
